@@ -74,7 +74,7 @@ export default function AdminBrandToggle() {
       }}
     >
       <Link href="/admin" className="admin-brand__link" aria-label="Ir al dashboard">
-        HAMSA ADMIN
+        SupleFsa ADMIN
       </Link>
     </div>
   );

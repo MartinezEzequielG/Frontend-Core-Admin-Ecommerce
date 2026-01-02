@@ -6,33 +6,40 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import ProductEditNav from './ProductEditNav';
 
+function normalizeBase(raw: string) {
+  const base = raw.replace(/\/+$/, '');
+  return base.replace(/\/api\/v1$/i, '');
+}
+
 const RAW_BASE =
   process.env.NEXT_PUBLIC_BACKEND_PUBLIC_URL ??
   process.env.BACKEND_PUBLIC_URL ??
   process.env.BACKEND_API_URL ??
   'http://localhost:3001';
 
-// elimina /api/v1 (cualquier casing) con o sin slash final
-const ASSETS_BASE = RAW_BASE.replace(/\/api\/v1\/?$/i, '');
+const ASSETS_BASE = normalizeBase(RAW_BASE);
+const ASSETS_PUBLIC_BASE =
+  process.env.NEXT_PUBLIC_ASSETS_BASE?.replace(/\/+$/, '') || '';
 
 function adminImageUrl(raw?: string | null): string {
   const r = (raw || '').trim();
-  if (!r) return `/placeholder.svg`; // o tu placeholder local
+  if (!r) return '/placeholder.svg';
 
-  // absoluta => ok
-  if (r.startsWith('http')) return r;
+  // 1) URL absoluta
+  if (r.startsWith('http://') || r.startsWith('https://')) return r;
 
-  // ✅ si viene de backend como /uploads/..., servilo por el proxy del admin
-  if (r.startsWith('/uploads/')) return r;
+  // 2) key de S3 (ej: "products/xxx.jpg")
+  if (ASSETS_PUBLIC_BASE && !r.startsWith('/') && !r.startsWith('uploads/')) {
+    return `${ASSETS_PUBLIC_BASE}/${r}`;
+  }
 
-  // soporta valores tipo "uploads/xxx.jpg"
-  if (r.startsWith('uploads/')) return `/${r}`;
+  // 3) legacy uploads
+  if (r.startsWith('/uploads/')) return `${ASSETS_BASE}${r}`;
+  if (r.startsWith('uploads/')) return `${ASSETS_BASE}/${r}`;
 
-  // si por error viene /api/v1/uploads/..., normalizá a /uploads/...
-  if (r.startsWith('/api/')) return r.replace(/\/api\/v1/i, '');
+  if (r.startsWith('/api/')) return `${ASSETS_BASE}${r.replace(/\/api\/v1/i, '')}`;
 
-  // fallback: asumir filename
-  return `/uploads/${r.replace(/^\/+/, '')}`;
+  return `${ASSETS_BASE}/uploads/${r.replace(/^\/+/, '')}`;
 }
 
 // Server Action para asignar categoría
@@ -68,22 +75,20 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
 
   return (
     <main className="admin-page">
-      {/* antes: <header className="card product-edit-header"> */}
-      <header className="product-edit-header">
+      {/* Header sticky con acciones siempre visibles */}
+      <header className="product-edit-header" style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--admin-bg)', paddingTop: 12, paddingBottom: 12 }}>
         <div>
           <h1 className="product-edit-title">{p.name}</h1>
-          <p className="product-edit-subtitle">
-            ID #{p.id} · {p.slug}
-          </p>
+          <p className="product-edit-subtitle">ID #{p.id} · {p.slug}</p>
           <ProductEditNav />
         </div>
 
         <div className="product-edit-actions">
           <button type="submit" form="product-basics-form" className="btn btn-primary">
-            Guardar
+            💾 Guardar cambios
           </button>
           <Link href="/admin/products" className="btn btn-outline">
-            Volver
+            ← Volver al listado
           </Link>
         </div>
       </header>
@@ -91,120 +96,183 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
       <div className="product-edit-grid">
         {/* Columna principal */}
         <div className="product-edit-main">
+          
+          {/* ✅ 1. BÁSICOS: Más compacto y visual */}
           <section id="basics" className="card form-grid">
-            <h2 className="section-title">Datos básicos</h2>
-            <p className="section-help">
-              Estos precios se usan como <strong>precio por defecto</strong>. Si una variante tiene precio propio, <strong>ese</strong> es el que se usa.
-            </p>
+            <div className="section-header">
+              <div>
+                <h2 className="section-title">📝 Datos básicos</h2>
+                <p className="section-help">Nombre, precio base y descripción del producto</p>
+              </div>
+            </div>
             <EditBasics product={p} formId="product-basics-form" />
           </section>
 
-          {/* ✅ MOVIDO: Imágenes debajo de básicos */}
+          {/* ✅ 2. IMÁGENES: Más arriba y con vista previa grande */}
           <section id="images" className="card form-grid">
-            <h2 className="section-title">Imágenes</h2>
+            <div className="section-header">
+              <div>
+                <h2 className="section-title">🖼️ Imágenes del producto</h2>
+                <p className="section-help">
+                  Arrastrá para reordenar • Primera imagen = principal
+                </p>
+              </div>
+              <ImagesClient productId={p.id} />
+            </div>
             <ImagesGrid product={p} />
-            <ImagesClient productId={p.id} />
           </section>
 
-          <section id="options" className="card form-grid">
-            <h2 className="section-title">Atributos (Color, Talle, Sabor)</h2>
-            <p className="section-help">
-              Definí atributos y valores. Luego generá variantes y cargá stock/precio por combinación.
-            </p>
+          {/* ✅ 3. VARIANTES: Simplificado con acordeón */}
+          <details id="variants" className="card" open={hasOptions}>
+            <summary className="section-header" style={{ cursor: 'pointer', padding: 16, userSelect: 'none' }}>
+              <div>
+                <h2 className="section-title">🎨 Variantes (Color, Talle, Sabor)</h2>
+                <p className="section-help">
+                  {hasOptions 
+                    ? `${(p.variants || []).length} variante${(p.variants || []).length !== 1 ? 's' : ''} activa${(p.variants || []).length !== 1 ? 's' : ''}`
+                    : 'Opcional: Creá variantes si tu producto tiene opciones'}
+                </p>
+              </div>
+            </summary>
 
-            {/* (Opcional) Si querés, el “debug list” lo puedo convertir en <details> */}
-            <OptionsEditor product={p} />
-          </section>
+            <div className="form-grid" style={{ paddingTop: 0 }}>
+              {!hasOptions ? (
+                <div style={{ padding: '16px 16px 0' }}>
+                  <div className="card" style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', padding: 12 }}>
+                    <p className="section-help" style={{ margin: 0 }}>
+                      💡 <strong>Tip:</strong> Si tu producto tiene variantes (ej. diferentes sabores o talles), primero agregá los atributos abajo.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
 
-          <section id="variants" className="card form-grid">
-            <h2 className="section-title">Variantes</h2>
-            <p className="section-help">
-              “Precio (variante)” es opcional. Si lo dejás vacío, la variante usa el precio del producto.
-            </p>
+              <div id="options" style={{ padding: '0 16px' }}>
+                <h3 className="text-sm" style={{ fontWeight: 700, marginBottom: 8 }}>Atributos disponibles</h3>
+                <OptionsEditor product={p} />
+              </div>
 
-            {hasOptions ? (
-              <>
-                <VariantsClient
-                  productId={p.id}
-                  variants={p.variants || []}
-                  options={p.options || []}
-                  basePrice={Number(p.basePrice ?? 0)}          // ✅ nuevo
-                  salePrice={p.salePrice == null ? null : Number(p.salePrice)} // ✅ nuevo
-                  addVariantAction={addVariant.bind(null, p.id)}
-                  upsertVariantAction={upsertVariant.bind(null, p.id)}
-                  deleteVariantAction={deleteVariant}
-                />
+              {hasOptions && (
+                <div style={{ padding: '16px', borderTop: '1px solid var(--admin-border)' }}>
+                  <VariantsClient
+                    productId={p.id}
+                    variants={p.variants || []}
+                    options={p.options || []}
+                    basePrice={Number(p.basePrice ?? 0)}
+                    salePrice={p.salePrice == null ? null : Number(p.salePrice)}
+                    addVariantAction={addVariant.bind(null, p.id)}
+                    upsertVariantAction={upsertVariant.bind(null, p.id)}
+                    deleteVariantAction={deleteVariant.bind(null, p.id)}  // <-- aquí
+                  />
 
-                <form action={generateVariants.bind(null, p.id)} className="row" style={{ justifyContent: 'flex-end' }}>
-                  <button type="submit" className="btn btn-outline">
-                    Generar variantes desde atributos
-                  </button>
-                </form>
-              </>
-            ) : (
-              <p className="section-help">Primero agregá al menos un atributo arriba para poder crear variantes.</p>
-            )}
-          </section>
+                  <form action={generateVariants.bind(null, p.id)} className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+                    <button type="submit" className="btn btn-outline">
+                      ⚡ Generar todas las combinaciones
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          </details>
 
-          <section id="audit" className="card form-grid">
-            <h2 className="section-title">Auditoría</h2>
-
-            {audits.length ? (
-              <ul style={{ fontSize: 12, display: 'grid', gap: 6, margin: 0, paddingLeft: 16 }}>
-                {audits.map((a: any) => (
-                  <li key={a.id} className="row" style={{ justifyContent: 'space-between' }}>
-                    <span>{a.action}</span>
-                    <span style={{ color: 'var(--admin-muted)' }}>{new Date(a.createdAt).toLocaleString()}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="section-help">Sin eventos</p>
-            )}
-          </section>
+          {/* ✅ 4. AUDITORÍA: Colapsado por defecto */}
+          <details id="audit" className="card">
+            <summary className="section-header" style={{ cursor: 'pointer', padding: 16, userSelect: 'none' }}>
+              <h2 className="section-title">📊 Historial de cambios</h2>
+            </summary>
+            <div style={{ padding: '0 16px 16px' }}>
+              {audits.length ? (
+                <ul style={{ fontSize: 12, display: 'grid', gap: 6, margin: 0, paddingLeft: 16 }}>
+                  {audits.map((a: any) => (
+                    <li key={a.id} className="row" style={{ justifyContent: 'space-between' }}>
+                      <span>{a.action}</span>
+                      <span style={{ color: 'var(--admin-muted)' }}>{new Date(a.createdAt).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="section-help">Sin eventos registrados</p>
+              )}
+            </div>
+          </details>
         </div>
 
-        {/* Columna lateral */}
+        {/* ✅ Columna lateral: más compacta */}
         <aside className="product-edit-side">
-          <section className="card form-grid">
-            <h2 className="section-title">Estado & categoría</h2>
+          <section className="card form-grid" style={{ position: 'sticky', top: 80 }}>
+            <h2 className="section-title">⚙️ Configuración rápida</h2>
 
-            <form action={updateFlags.bind(null, p.id)} className="row">
-              <label className="text-sm row">
-                <input type="checkbox" name="active" defaultChecked={p.active} /> Activo
+            {/* Estado visual con toggles */}
+            <form action={updateFlags.bind(null, p.id)} className="form-grid" style={{ gap: 12 }}>
+              <label className="toggle-card" style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                padding: 12,
+                border: '1px solid var(--admin-border)',
+                borderRadius: 10,
+                cursor: 'pointer',
+                background: p.active ? '#f0fdf4' : 'var(--admin-surface)'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>✅ Producto activo</div>
+                  <div style={{ fontSize: 11, color: 'var(--admin-muted)' }}>Visible en la tienda</div>
+                </div>
+                <input type="checkbox" name="active" defaultChecked={p.active} />
               </label>
-              <label className="text-sm row">
-                <input type="checkbox" name="featured" defaultChecked={p.featured} /> Destacado
+
+              <label className="toggle-card" style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                padding: 12,
+                border: '1px solid var(--admin-border)',
+                borderRadius: 10,
+                cursor: 'pointer',
+                background: p.featured ? '#fef3c7' : 'var(--admin-surface)'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>⭐ Destacado</div>
+                  <div style={{ fontSize: 11, color: 'var(--admin-muted)' }}>Aparece en home</div>
+                </div>
+                <input type="checkbox" name="featured" defaultChecked={p.featured} />
               </label>
-              <button type="submit" className="btn btn-outline">Guardar</button>
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                Guardar estado
+              </button>
             </form>
 
-            <form action={setCategory.bind(null, p.id)} className="row">
+            {/* Categoría */}
+            <form action={setCategory.bind(null, p.id)} className="form-grid" style={{ gap: 8, paddingTop: 12, borderTop: '1px solid var(--admin-border)' }}>
+              <label className="text-sm" style={{ fontWeight: 600 }}>📂 Categoría</label>
               <select name="categoryId" defaultValue={p.categoryId ?? ''} className="select">
                 <option value="">Sin categoría</option>
                 {(categories || []).map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <button type="submit" className="btn btn-outline">Asignar</button>
+              <button type="submit" className="btn btn-outline" style={{ width: '100%' }}>
+                Actualizar categoría
+              </button>
             </form>
-          </section>
 
-          <section id="audit" className="card form-grid">
-            <h2 className="section-title">Auditoría</h2>
-
-            {audits.length ? (
-              <ul style={{ fontSize: 12, display: 'grid', gap: 6, margin: 0, paddingLeft: 16 }}>
-                {audits.map((a: any) => (
-                  <li key={a.id} className="row" style={{ justifyContent: 'space-between' }}>
-                    <span>{a.action}</span>
-                    <span style={{ color: 'var(--admin-muted)' }}>{new Date(a.createdAt).toLocaleString()}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="section-help">Sin eventos</p>
-            )}
+            {/* Quick stats */}
+            <div style={{ paddingTop: 12, borderTop: '1px solid var(--admin-border)', fontSize: 12 }}>
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ color: 'var(--admin-muted)' }}>Stock total:</span>
+                <span style={{ fontWeight: 700 }}>
+                  {(p.variants || []).reduce((sum: number, v: any) => sum + (v?.stock?.available || 0), 0)} unidades
+                </span>
+              </div>
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ color: 'var(--admin-muted)' }}>Imágenes:</span>
+                <span style={{ fontWeight: 700 }}>{(p.images || []).length}</span>
+              </div>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--admin-muted)' }}>Variantes:</span>
+                <span style={{ fontWeight: 700 }}>{(p.variants || []).length}</span>
+              </div>
+            </div>
           </section>
         </aside>
       </div>
@@ -293,7 +361,7 @@ export async function addVariant(productId: number) {
   revalidatePath(`/admin/products/${productId}`);
 }
 
-export async function deleteVariant(variantId: number) {
+export async function deleteVariant(productId: number, variantId: number) {
   'use server';
   const token = (await cookies()).get('token')?.value;
   const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/variants/${variantId}`, {
@@ -305,10 +373,20 @@ export async function deleteVariant(variantId: number) {
   if (res.status === 401) {
     redirect('/admin/login');
   }
+
+  if (res.status === 404) {
+    // La variante ya no existe (alguien la borró antes, o datos stale).
+    // Lo tomamos como éxito y refrescamos la vista.
+    revalidatePath(`/admin/products/${productId}`);
+    return;
+  }
+
   if (!res.ok) {
     const msg = await res.text().catch(() => 'Error al eliminar variante');
     throw new Error(msg);
   }
+
+  revalidatePath(`/admin/products/${productId}`);
 }
 
 // Ajustar EditBasics: solo formulario, sin botón visible, con id configurable
@@ -323,7 +401,24 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
       (slugInput
         ? (await import('@/lib/slug')).slugify(slugInput)
         : (await import('@/lib/slug')).slugify(name)) || product.slug;
-    await patchProduct(product.id, { name, basePrice, salePrice, slug });
+    const description = String(formData.get('description') || '').trim();
+    const discountTransfer = Number(formData.get('discountTransfer') || 0);
+    const discountMp = Number(formData.get('discountMp') || 0);
+    const isNew = formData.get('isNew') === 'on';
+    const isHot = formData.get('isHot') === 'on';
+    const freeShipping = formData.get('freeShipping') === 'on';
+    await patchProduct(product.id, {
+      name,
+      basePrice,
+      salePrice,
+      slug,
+      description,
+      discountTransfer,
+      discountMp,
+      isNew,
+      isHot,
+      freeShipping,
+    });
   };
 
   return (
@@ -365,36 +460,134 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
           />
         </div>
       </div>
+      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
+        <div>
+          <label className="text-sm">% OFF Transferencia</label>
+          <input
+            name="discountTransfer"
+            type="number"
+            step="0.01"
+            min="0"
+            max="100"
+            defaultValue={product.discountTransfer ?? ''}
+            className="input"
+          />
+        </div>
+        <div>
+          <label className="text-sm">% OFF MercadoPago</label>
+          <input
+            name="discountMp"
+            type="number"
+            step="0.01"
+            min="0"
+            max="100"
+            defaultValue={product.discountMp ?? ''}
+            className="input"
+          />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 16 }}>
+        <label className="text-sm">
+          <input type="checkbox" name="isNew" defaultChecked={product.isNew} /> Nuevo
+        </label>
+        <label className="text-sm">
+          <input type="checkbox" name="isHot" defaultChecked={product.isHot} /> Más vendido
+        </label>
+        <label className="text-sm">
+          <input type="checkbox" name="freeShipping" defaultChecked={product.freeShipping} /> Envío gratis
+        </label>
+      </div>
+      <div>
+        <label className="text-sm">Descripción</label>
+        <textarea
+          name="description"
+          defaultValue={product.description ?? ''}
+          className="input"
+          rows={4}
+          style={{ resize: 'vertical' }}
+        />
+      </div>
 
-      {/* ya no tiene botón aquí; se usa el del header */}
     </form>
   );
 }
 
 function ImagesGrid({ product }: { product: any }) {
   return (
-    <div className="cards" style={{ gridTemplateColumns: 'repeat(5, minmax(0,1fr))' }}>
-      {(product.images || []).map((img: any) => {
+    <div
+      className="cards"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+        gap: 10,
+      }}
+    >
+      {(product.images || []).map((img: any, idx: number) => {
         const url = adminImageUrl(img.url);
+        const position = typeof img.position === 'number' && img.position > 0 ? img.position : idx + 1;
 
         return (
-          <div key={img.id} className="card" style={{ padding: 8 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+          <div key={img.id} className="card" style={{ padding: 8, position: 'relative' }}>
+            {/* Badge de posición */}
+            <span
+              style={{
+                position: 'absolute',
+                top: 8,
+                left: 8,
+                background: 'rgba(241,245,249,0.9)',
+                color: '#475569',
+                fontSize: 11,
+                borderRadius: 999,
+                padding: '2px 8px',
+                fontWeight: 600,
+                boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+                zIndex: 2,
+                pointerEvents: 'none',
+              }}
+            >
+              #{position}
+            </span>
+
+            {/* Botón eliminar arriba a la derecha */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                zIndex: 2,
+                width: 26,
+                height: 26,
+                borderRadius: '999px',
+                background: 'rgba(248,250,252,0.95)',
+                border: '1px solid rgba(148,163,184,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 1px 4px rgba(15,23,42,0.08)',
+              }}
+            >
+              <RemoveImageButton productId={product.id} imageId={img.id} icon />
+            </div>
+
+            {/* Miniatura */}
             <img
               src={url}
               alt=""
-              style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8 }}
-            />
-            <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: 6,
+                width: '100%',
+                height: 96,
+                objectFit: 'cover',
+                borderRadius: 10,
+                display: 'block',
+                marginBottom: 8,
               }}
-            >
-              <span className="badge">#{img.position}</span>
-              <RemoveImageButton productId={product.id} imageId={img.id} />
+            />
+
+            {/* Abrir imagen */}
+            <div style={{ fontSize: 11, opacity: 0.7, wordBreak: 'break-all', textAlign: 'center' }}>
+              <a href={url} target="_blank" rel="noreferrer">
+                Abrir imagen
+              </a>
             </div>
           </div>
         );
@@ -403,7 +596,8 @@ function ImagesGrid({ product }: { product: any }) {
   );
 }
 
-function RemoveImageButton({ productId, imageId }: { productId: number; imageId: number }) {
+// Reemplaza el botón por un SVG si se pasa prop "icon"
+function RemoveImageButton({ productId, imageId, icon }: { productId: number; imageId: number; icon?: boolean }) {
   const remove = async () => {
     'use server';
     const token = (await cookies()).get('token')?.value;
@@ -416,7 +610,35 @@ function RemoveImageButton({ productId, imageId }: { productId: number; imageId:
     if (!res.ok) throw new Error(await res.text());
     revalidatePath(`/admin/products/${productId}`);
   };
-  return <form action={remove}><button className="btn btn-outline" type="submit">Eliminar</button></form>;
+
+  return (
+    <form action={remove} style={{ display: 'inline' }}>
+      <button
+        type="submit"
+        aria-label="Eliminar imagen"
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        {icon ? (
+          // ícono "X" minimalista
+          <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="none" stroke="#e11d48" strokeWidth="1.2" />
+            <path d="M7 7l6 6M13 7l-6 6" stroke="#e11d48" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        ) : (
+          'Eliminar'
+        )}
+      </button>
+    </form>
+  );
 }
 
 function OptionsEditor({ product }: { product: any }) {

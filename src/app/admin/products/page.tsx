@@ -42,12 +42,25 @@ export default async function ProductsList({ searchParams }: { searchParams: SP 
 
         {/* Filtros */}
         <form className="card filters-card">
+          {/* Fila superior: búsqueda + acciones */}
           <div className="filters-top">
-            <input name="q" defaultValue={q} placeholder="Buscar por nombre, slug o SKU..." className="input" />
-            <button type="submit" className="btn btn-outline">Aplicar</button>
-            <Link href="/admin/products" className="btn btn-outline">Limpiar</Link>
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Buscar por nombre, slug o SKU..."
+              className="input"
+            />
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="submit" className="btn btn-outline">
+                Aplicar
+              </button>
+              <Link href="/admin/products" className="btn btn-outline">
+                Limpiar
+              </Link>
+            </div>
           </div>
 
+          {/* Filtros avanzados */}
           <div className="filters-advanced">
             <select name="active" defaultValue={active} className="select">
               <option value="">Estado: todos</option>
@@ -61,7 +74,12 @@ export default async function ProductsList({ searchParams }: { searchParams: SP 
               <option value="false">Sin stock</option>
             </select>
 
-            <input name="categoryId" defaultValue={categoryId} placeholder="CategoryId" className="input" />
+            <input
+              name="categoryId"
+              defaultValue={categoryId}
+              placeholder="CategoryId"
+              className="input"
+            />
 
             <select name="sort" defaultValue={sort} className="select">
               <option value="createdAt:desc">Más recientes</option>
@@ -71,12 +89,14 @@ export default async function ProductsList({ searchParams }: { searchParams: SP 
             </select>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <a href={exportUrl} className="btn btn-outline">Export CSV</a>
-            <Link href="/admin/products/new" className="btn btn-primary">+ Nuevo</Link>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--admin-muted)' }}>
-              {items.length} productos
+          {/* Pie de filtros: resumen + export */}
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="section-help">
+              Mostrando {typedItems.length} productos en esta página
             </span>
+            <a href={exportUrl} className="btn btn-outline">
+              Export CSV
+            </a>
           </div>
         </form>
 

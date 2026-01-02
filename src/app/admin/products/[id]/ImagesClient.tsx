@@ -6,47 +6,49 @@ export default function ImagesClient({ productId }: { productId: number }) {
   const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function upload(file: File) {
-    const fd = new FormData();
-    fd.append('file', file);
+  function getCookie(name: string) {
+    return document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(name + '='))
+      ?.split('=')[1];
+  }
 
-    const urlUpload = `/api/admin/uploads/image`;
-    const urlLink = `/api/admin/products/${productId}/images`;
+  async function uploadToS3(file: File) {
+    const token = getCookie('token');
 
-    return new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-      };
-      xhr.onreadystatechange = async () => {
+    const presignRes = await fetch('/admin/uploads/presign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        contentType: file.type,
+        folder: 'products',
+      }),
+    });
+
+    if (!presignRes.ok) {
+      const txt = await presignRes.text().catch(() => '');
+      throw new Error(`Error al pedir presign: ${presignRes.status} ${txt}`);
+    }
+
+    const { uploadUrl, publicUrl } = await presignRes.json();
+
+    // PUT directo a S3
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    return new Promise<string>((resolve, reject) => {
+      xhr.onreadystatechange = () => {
         if (xhr.readyState === 4) {
-          try {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              const j = JSON.parse(xhr.responseText || '{}');
-              const url = typeof j?.url === 'string' ? j.url.trim() : '';
-              if (!url) return reject(new Error('Upload sin URL'));
-              const linkRes = await fetch(urlLink, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, position: 0 }),
-              });
-              if (!linkRes.ok) {
-                const err = await linkRes.json().catch(() => ({}));
-                return reject(new Error(err?.message || `HTTP ${linkRes.status}`));
-              }
-              resolve();
-              location.reload();
-            } else {
-              const err = xhr.responseText || 'Error al subir';
-              reject(new Error(err));
-            }
-          } catch (err: any) {
-            reject(err);
-          }
+          if (xhr.status >= 200 && xhr.status < 300) resolve(publicUrl);
+          else reject(new Error(`Error al subir a S3 (status ${xhr.status})`));
         }
       };
-      xhr.open('POST', urlUpload);
-      xhr.send(fd);
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.send(file);
     });
   }
 
@@ -55,7 +57,19 @@ export default function ImagesClient({ productId }: { productId: number }) {
     if (!f) return;
     setProgress(0);
     try {
-      await upload(f);
+      // Nuevo flujo: subir a S3 y guardar la URL en el producto
+      const publicUrl = await uploadToS3(f);
+      const urlLink = `/api/admin/products/${productId}/images`;
+      const linkRes = await fetch(urlLink, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: publicUrl, position: 0 }),
+      });
+      if (!linkRes.ok) {
+        const err = await linkRes.json().catch(() => ({}));
+        throw new Error(err?.message || `HTTP ${linkRes.status}`);
+      }
+      location.reload();
     } catch (err) {
       alert((err as Error).message);
     } finally {

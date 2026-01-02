@@ -34,6 +34,8 @@ export default function VariantsClient(props: {
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <p className="section-help" style={{ margin: 0 }}>
           <strong>Precio</strong> es <strong>opcional</strong>. Si está vacío, se usa el precio del producto.
+          <br />
+          <span style={{ fontSize: 11, opacity: 0.7 }}>Los cambios se guardan automáticamente al salir de cada campo.</span>
         </p>
 
         <button type="button" className="btn btn-outline" onClick={() => props.addVariantAction()}>
@@ -55,7 +57,7 @@ export default function VariantsClient(props: {
               <col style={{ width: 180 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 110 }} />
-              <col style={{ width: 210 }} />
+              <col style={{ width: 50 }} />
             </colgroup>
 
             <thead>
@@ -115,15 +117,21 @@ function VariantRow({
   const initialSelected: Record<number, number | ''> = useMemo(() => {
     const out: Record<number, number | ''> = {};
     for (const opt of options || []) {
-      const match = (v.options || []).find((vo: any) => vo?.optionValue && vo.optionValue.optionId === opt.id);
+      const match = (v.options || []).find(
+        (vo: any) => vo?.optionValue && vo.optionValue.optionId === opt.id,
+      );
       out[opt.id] = match?.optionValue?.id ?? '';
     }
     return out;
   }, [options, v.options]);
 
-  const [selectedValues, setSelectedValues] = useState<Record<number, number | ''>>(initialSelected);
+  const [selectedValues, setSelectedValues] = useState<Record<number, number | ''>>(
+    initialSelected,
+  );
 
-  const optionValueIds = Object.values(selectedValues).filter((x): x is number => typeof x === 'number');
+  const optionValueIds = Object.values(selectedValues).filter(
+    (x): x is number => typeof x === 'number',
+  );
 
   const comboLabel =
     (options || [])
@@ -138,6 +146,33 @@ function VariantRow({
   const fallback = salePrice ?? basePrice;
 
   const isComboValid = options.every((opt) => selectedValues[opt.id]);
+
+  // 🔽 AUTO-GUARDADO unificado
+  const autoSave = () => {
+    if (pending) return;
+    if (!isComboValid) return;
+
+    // si no cambió nada, no llamamos al server
+    if (
+      stock === (v.stock ?? 0) &&
+      (v.sku ?? '') === sku &&
+      (v.price != null ? String(v.price) : '') === price.trim() &&
+      (v.active ?? true) === active &&
+      JSON.stringify(initialSelected) === JSON.stringify(selectedValues)
+    ) {
+      return;
+    }
+
+    startTransition(() =>
+      onSave({
+        sku: sku || null,
+        price: price.trim() ? Number(price) : null,
+        stock,
+        active,
+        optionValueIds,
+      }),
+    );
+  };
 
   return (
     <tr>
@@ -157,12 +192,13 @@ function VariantRow({
                 <select
                   className="select"
                   value={selectedValues[opt.id]}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setSelectedValues((prev) => ({
                       ...prev,
                       [opt.id]: e.target.value ? Number(e.target.value) : '',
-                    }))
-                  }
+                    }));
+                  }}
+                  onBlur={autoSave}
                 >
                   <option value="">—</option>
                   {(opt.values || []).map((val: any) => (
@@ -178,7 +214,13 @@ function VariantRow({
       </td>
 
       <td>
-        <input className="input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU" />
+        <input
+          className="input"
+          value={sku}
+          onChange={(e) => setSku(e.target.value)}
+          onBlur={autoSave}
+          placeholder="SKU"
+        />
       </td>
 
       <td>
@@ -191,6 +233,7 @@ function VariantRow({
             step="0.01"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
+            onBlur={autoSave}
             placeholder="—"
             aria-label="Precio de variante (opcional)"
           />
@@ -208,6 +251,7 @@ function VariantRow({
             step={1}
             value={stock}
             onChange={(e) => setStock(Number(e.target.value || 0))}
+            onBlur={autoSave}
             placeholder="0"
             aria-label="Stock"
           />
@@ -215,44 +259,69 @@ function VariantRow({
       </td>
 
       <td>
-        <label className="row" style={{ alignItems: 'center' }}>
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Sí
+        <label className="row" style={{ alignItems: 'center', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => {
+              setActive(e.target.checked);
+              // Auto-guardamos al cambiar el checkbox
+              setTimeout(autoSave, 100);
+            }}
+          />{' '}
+          Sí
         </label>
       </td>
 
-      <td style={{ textAlign: 'right' }}>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={pending || !isComboValid}
-            onClick={() =>
-              startTransition(() =>
-                onSave({
-                  sku: sku || null,
-                  price: price.trim() ? Number(price) : null,
-                  stock,
-                  active,
-                  optionValueIds,
-                }),
-              )
+      <td style={{ textAlign: 'center' }}>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            if (!confirm('¿Eliminar esta variante?')) return;
+            startTransition(() => onDelete());
+          }}
+          className="btn-icon-delete"
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 8,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pending ? 0.5 : 1,
+            borderRadius: 6,
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (!pending) {
+              e.currentTarget.style.background = '#fee2e2';
             }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'none';
+          }}
+          aria-label="Eliminar variante"
+          title="Eliminar variante"
+        >
+          {/* Ícono de tacho de basura SVG con color rojo */}
+          <svg 
+            width="18" 
+            height="18" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="#dc2626" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
           >
-            Guardar
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-danger"
-            disabled={pending}
-            onClick={() => {
-              if (!confirm('¿Eliminar esta variante?')) return;
-              startTransition(() => onDelete());
-            }}
-          >
-            Eliminar
-          </button>
-        </div>
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </button>
       </td>
     </tr>
   );

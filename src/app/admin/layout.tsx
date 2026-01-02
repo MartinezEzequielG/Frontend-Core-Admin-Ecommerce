@@ -65,7 +65,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
 
         <footer className="admin-footer" role="contentinfo">
-          © {year} Hamsa Admin
+          © {year} SuplementacionFsa Admin by <span className="by-innova">Innova</span>
         </footer>
       </section>
     </div>

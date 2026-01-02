@@ -22,7 +22,7 @@ async function saveSiteConfig(formData: FormData) {
   const res = await fetch(`${process.env.BACKEND_API_URL}/admin/site`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload), // ✅ ahora incluye logoUrl
     cache: 'no-store',
   });
   if (res.status === 401) redirect('/admin/login');
@@ -37,7 +37,7 @@ export default async function AdminContentPage() {
   return (
     <main className="admin-page">
       <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Contenido del Store</h1>
-      <p className="section-help">Editá banners y redes sociales sin tocar código.</p>
+      <p className="section-help">Editá banners, logo y redes sociales sin tocar código.</p>
 
       <ContentEditor initial={cfg} saveAction={saveSiteConfig} />
     </main>
