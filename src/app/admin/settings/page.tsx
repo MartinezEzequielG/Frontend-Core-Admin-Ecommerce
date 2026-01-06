@@ -223,7 +223,7 @@ export default async function AdminSettingsPage({
             }}
           >
             <p style={{ margin: 0, fontSize: 12, color: '#78350f' }}>
-              <strong>💡 Nota:</strong> Estos datos son necesarios para crear preferencias de pago
+              <strong>Nota:</strong> Estos datos son necesarios para crear preferencias de pago
               en MercadoPago. Asegurate de que coincidan con tu cuenta de MP.
             </p>
           </div>
@@ -235,7 +235,7 @@ export default async function AdminSettingsPage({
             Cancelar
           </a>
           <button type="submit" className="btn btn-primary">
-            💾 Guardar configuración
+            Guardar configuración
           </button>
         </div>
       </form>

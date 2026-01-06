@@ -22,7 +22,15 @@ export default function ContentEditor({
   initial,
   saveAction,
 }: {
-  initial: { banners?: any[]; socialLinks?: any[]; whatsappNumber?: string; address?: string; logoUrl?: string | null };
+  initial: {
+    banners?: any[];
+    socialLinks?: any[];
+    whatsappNumber?: string;
+    address?: string;
+    logoUrl?: string | null;
+    // ✅ agregar
+    checkoutMode?: 'CATALOG' | 'CART';
+  };
   saveAction: (fd: FormData) => void;
 }) {
   const [banners, setBanners] = useState<Banner[]>(
@@ -51,6 +59,9 @@ export default function ContentEditor({
   const [logoUploading, setLogoUploading] = useState(false);
 
   const [bannerUploadingId, setBannerUploadingId] = useState<string | null>(null);
+  const [checkoutMode, setCheckoutMode] = useState<'CATALOG' | 'CART'>(
+    (initial.checkoutMode as any) || 'CATALOG',
+  );
 
   async function onLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -138,8 +149,13 @@ export default function ContentEditor({
       socialLinks,
       whatsappNumber,
       address,
-      logoUrl: logoUrl.trim() || null,
+      logoUrl,
+      banners,
+      socialLinks,
+      // ✅ agregar
+      checkoutMode,
     };
+
     const fd = new FormData();
     fd.set('payload', JSON.stringify(payload));
     saveAction(fd);
@@ -414,6 +430,25 @@ export default function ContentEditor({
             </button>
           </div>
         ))}
+      </section>
+
+      {/* Modo de tienda */}
+      <section className="card form-grid">
+        <h2 className="section-title">Modo de tienda</h2>
+        <p className="section-help">Podés publicar como catálogo y habilitar compra más adelante.</p>
+
+        <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+          <label className="text-sm" style={{ width: 180 }}>Checkout</label>
+          <select
+            className="select"
+            value={checkoutMode}
+            onChange={(e) => setCheckoutMode(e.target.value as any)}
+            style={{ maxWidth: 260 }}
+          >
+            <option value="CATALOG">Catálogo (sin carrito)</option>
+            <option value="CART">Carrito (habilitado)</option>
+          </select>
+        </div>
       </section>
 
       <div className="row" style={{ justifyContent: 'flex-end' }}>
