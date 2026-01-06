@@ -13,12 +13,14 @@ export function imageUrl(u?: string | null): string {
   return `${ASSETS_BASE}${u}`;
 }
 
-export async function backendFetch(path: string, init?: RequestInit) {
+export async function backendFetch<T = unknown>(path: string, init?: RequestInit): Promise<T | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
+
   const headers = new Headers(init?.headers);
   headers.set('Content-Type', 'application/json');
   if (token) headers.set('Authorization', `Bearer ${token}`);
+
   const res = await fetch(`${API}${path}`, { ...init, headers, cache: 'no-store' });
 
   if (res.status === 401) redirect('/login');
@@ -26,8 +28,11 @@ export async function backendFetch(path: string, init?: RequestInit) {
 
   if (!res.ok) {
     let message = `Request failed ${res.status}`;
-    try { message = (await res.json()).message ?? message; } catch {}
+    try {
+      message = (await res.json()).message ?? message;
+    } catch {}
     throw new Error(message);
   }
-  return res.json();
+
+  return (await res.json()) as T;
 }

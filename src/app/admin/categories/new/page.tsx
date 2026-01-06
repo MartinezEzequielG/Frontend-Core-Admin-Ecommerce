@@ -19,13 +19,19 @@ async function createCategory(formData: FormData) {
     body: JSON.stringify({ name, slug, parentId }),
     cache: 'no-store',
   });
+
   if (!res.ok) throw new Error(await res.text());
   redirect('/admin/categories');
 }
 
-export default async function NewCategory({ searchParams }: { searchParams: Promise<{ parentId?: string }> }) {
-  const { parentId = '' } = await searchParams;
-  const categories = await backendFetch<any[]>('/admin/categories').catch(() => []);
+export default async function NewCategory({
+  searchParams,
+}: {
+  searchParams?: { parentId?: string };
+}) {
+  const parentId = searchParams?.parentId ?? '';
+
+  const categories = (await backendFetch<any[]>('/admin/categories').catch(() => [])) ?? [];
 
   return (
     <main className="admin-content">
