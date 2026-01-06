@@ -1,11 +1,18 @@
 import Link from 'next/link';
 import { backendFetch } from '@/lib/backend';
 
+type AdminCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  parentId?: number | null;
+};
+
 export default async function CategoriesPage() {
-  const cats = await backendFetch('/admin/categories');
+  const cats = await backendFetch<AdminCategory[]>('/admin/categories');
   if (!cats) return <main className="admin-content"><p>Acceso denegado.</p></main>;
 
-  const byParent: Record<string, any[]> = {};
+  const byParent: Record<string, AdminCategory[]> = {};
   for (const c of cats) {
     const key = String(c.parentId ?? 'root');
     (byParent[key] ||= []).push(c);

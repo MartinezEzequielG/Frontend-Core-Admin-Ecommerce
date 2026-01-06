@@ -3,11 +3,22 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 
+type AdminCategory = {
+  id: number;
+  name: string;
+  slug: string;
+  parentId?: number | null;
+  description?: string | null;
+  imageUrl?: string | null;
+};
+
 export default async function CategoryDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const cats = await backendFetch('/admin/categories');
+
+  const cats = await backendFetch<AdminCategory[]>('/admin/categories');
   if (!cats) return <main className="admin-content"><p>Acceso denegado.</p></main>;
-  const cat = cats.find((c: any) => c.id === Number(id));
+
+  const cat = cats.find((c) => c.id === Number(id));
   if (!cat) return <main className="admin-content"><p>No encontrada</p></main>;
 
   return (
