@@ -328,39 +328,24 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
 async function patchProduct(id: number, body: any) {
   'use server';
   const token = (await (await import('next/headers')).cookies()).get('token')?.value;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${id}`, {
+
+  const res = await fetch(`${API}/admin/products/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
     cache: 'no-store',
   });
 
-  if (!res.ok) {
-    throw new Error(await res.text().catch(() => 'Error'));
-  }
-
-  // si este server action actualiza algo del producto, normalmente revalida:
+  if (!res.ok) throw new Error(await res.text().catch(() => 'Error'));
   revalidatePath(`/admin/products/${id}`);
 }
 
 // Variantes (server actions usadas por VariantsClient)
-export async function upsertVariant(
-  productId: number,
-  variant: {
-    id: number;
-    sku?: string | null;
-    price?: number | null;
-    stock?: number;
-    active?: boolean;
-    optionValueIds?: number[];
-  },
-) {
+export async function upsertVariant(productId: number, variant: any) {
   'use server';
-  console.log('upsertVariant payload', variant); // <--- agrega esto
-
   const token = (await cookies()).get('token')?.value;
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${productId}/variants`, {
+  const res = await fetch(`${API}/admin/products/${productId}/variants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({
@@ -369,68 +354,59 @@ export async function upsertVariant(
       price: variant.price ?? null,
       stock: variant.stock ?? 0,
       active: variant.active ?? true,
-      optionValueIds: variant.optionValueIds ?? [], // ✅ enviar
+      optionValueIds: variant.optionValueIds ?? [],
     }),
     cache: 'no-store',
   });
 
-  if (res.status === 401) redirect('/admin/login');
+  if (res.status === 401) redirect('/login');
   if (!res.ok) throw new Error(await res.text().catch(() => 'Error al guardar variante'));
-
   revalidatePath(`/admin/products/${productId}`);
 }
 
 export async function addVariant(productId: number) {
   'use server';
   const token = (await cookies()).get('token')?.value;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${productId}/variants`, {
+
+  const res = await fetch(`${API}/admin/products/${productId}/variants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({
-      sku: `VAR-${productId}-${Date.now()}`,
-      price: null,
-      stock: 10,
-      active: true,
-    }),
+    body: JSON.stringify({ sku: `VAR-${productId}-${Date.now()}`, price: null, stock: 10, active: true }),
     cache: 'no-store',
   });
 
-  if (res.status === 401) {
-    redirect('/admin/login');
-  }
-  if (!res.ok) {
-    const msg = await res.text().catch(() => 'Error al crear variante');
-    throw new Error(msg);
-  }
-
+  if (res.status === 401) redirect('/login');
+  if (!res.ok) throw new Error(await res.text().catch(() => 'Error al crear variante'));
   revalidatePath(`/admin/products/${productId}`);
 }
 
 export async function deleteVariant(productId: number, variantId: number) {
   'use server';
   const token = (await cookies()).get('token')?.value;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/variants/${variantId}`, {
+
+  const res = await fetch(`${API}/admin/products/variants/${variantId}`, {
     method: 'DELETE',
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     cache: 'no-store',
   });
 
-  if (res.status === 401) {
-    redirect('/admin/login');
-  }
+  if (res.status === 401) redirect('/login');
+  if (res.status === 404) return revalidatePath(`/admin/products/${productId}`);
+  if (!res.ok) throw new Error(await res.text().catch(() => 'Error al eliminar variante'));
+  revalidatePath(`/admin/products/${productId}`);
+}
 
-  if (res.status === 404) {
-    // La variante ya no existe (alguien la borró antes, o datos stale).
-    // Lo tomamos como éxito y refrescamos la vista.
-    revalidatePath(`/admin/products/${productId}`);
-    return;
-  }
+async function generateVariants(productId: number) {
+  'use server';
+  const token = (await cookies()).get('token')?.value;
 
-  if (!res.ok) {
-    const msg = await res.text().catch(() => 'Error al eliminar variante');
-    throw new Error(msg);
-  }
+  const res = await fetch(`${API}/admin/products/${productId}/variants/generate`, {
+    method: 'POST',
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    cache: 'no-store',
+  });
 
+  if (!res.ok) throw new Error(await res.text());
   revalidatePath(`/admin/products/${productId}`);
 }
 
@@ -646,7 +622,7 @@ function RemoveImageButton({ productId, imageId, icon }: { productId: number; im
   const remove = async () => {
     'use server';
     const token = (await cookies()).get('token')?.value;
-    const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${productId}`, {
+    const res = await fetch(`${API}/admin/products/${productId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ images: { delete: { id: imageId } } }),
@@ -691,7 +667,7 @@ function OptionsEditor({ product }: { product: any }) {
     'use server';
     const token = (await cookies()).get('token')?.value;
     const name = String(formData.get('name') || '').trim();
-    const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${product.id}/options`, {
+    const res = await fetch(`${API}/admin/products/${product.id}/options`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ name }),
@@ -731,7 +707,7 @@ function RemoveOptionButton({ optionId, productId }: { optionId: number; product
   const remove = async () => {
     'use server';
     const token = (await cookies()).get('token')?.value;
-    const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/options/${optionId}`, {
+    const res = await fetch(`${API}/admin/products/options/${optionId}`, {
       method: 'DELETE',
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       cache: 'no-store',
@@ -747,7 +723,7 @@ function AddOptionValueForm({ optionId, productId }: { optionId: number; product
     'use server';
     const token = (await cookies()).get('token')?.value;
     const value = String(formData.get('value') || '').trim();
-    const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/options/${optionId}/values`, {
+    const res = await fetch(`${API}/admin/products/options/${optionId}/values`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ value }),
@@ -762,16 +738,4 @@ function AddOptionValueForm({ optionId, productId }: { optionId: number; product
       <button type="submit" className="btn btn-outline">+ Valor</button>
     </form>
   );
-}
-
-async function generateVariants(productId: number) {
-  'use server';
-  const token = (await cookies()).get('token')?.value;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${productId}/variants/generate`, {
-    method: 'POST',
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(await res.text());
-  revalidatePath(`/admin/products/${productId}`);
 }

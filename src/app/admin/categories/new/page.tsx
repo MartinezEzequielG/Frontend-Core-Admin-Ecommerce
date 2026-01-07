@@ -1,11 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { backendFetch } from '@/lib/backend';
+import { backendFetch, API } from '@/lib/backend'; // ✅ importar API
 
 async function createCategory(formData: FormData) {
   'use server';
   const token = (await cookies()).get('token')?.value;
+
   const name = String(formData.get('name') || '').trim();
   const slug = String(formData.get('slug') || '').trim();
   const parentId = formData.get('parentId') ? Number(formData.get('parentId')) : null;
@@ -13,7 +14,7 @@ async function createCategory(formData: FormData) {
   if (!name) throw new Error('Nombre requerido');
   if (!slug) throw new Error('Slug requerido');
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/categories`, {
+  const res = await fetch(`${API}/admin/categories`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ name, slug, parentId }),
