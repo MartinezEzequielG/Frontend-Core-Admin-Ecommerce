@@ -120,14 +120,16 @@ export default async function ProductDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: { saved?: string };
+  searchParams?: Promise<{ saved?: string; error?: string }> | { saved?: string; error?: string };
 }) {
   const { id } = await params;
 
+  const sp = await Promise.resolve(searchParams as any); // ✅ soporta Promise u objeto
+  const saved = sp?.saved === '1';
+  const error = sp?.error === '1';
+
   const p = await backendFetch<AdminProductDetail>(`/admin/products/${id}`);
   if (!p) return <main className="admin-content"><p>Acceso denegado.</p></main>;
-
-  const saved = searchParams?.saved === '1';
 
   const categories = await backendFetch<AdminCategory[]>('/admin/categories');
 
@@ -138,7 +140,12 @@ export default async function ProductDetail({
 
   return (
     <main className="admin-page">
-      <Toast message={saved ? 'Cambios guardados correctamente' : undefined} />
+      <Toast
+        message={
+          saved ? 'Cambios guardados correctamente' : error ? 'No se pudo guardar. Intentá nuevamente.' : undefined
+        }
+        variant={saved ? 'success' : error ? 'error' : 'default'}
+      />
 
       {/* Header sticky con acciones siempre visibles */}
       <header className="product-edit-header" style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--admin-bg)', paddingTop: 12, paddingBottom: 12 }}>

@@ -7,6 +7,7 @@ import AdminSidebarOverlay from '@/components/admin/AdminSidebarOverlay';
 import AdminBreadcrumbs from '@/components/admin/AdminBreadcrumbs';
 import AdminBrandToggle from '@/components/admin/AdminBrandToggle';
 import InnovaBrand from '@/components/admin/ui/InnovaBrand';
+import Toast from '@/components/admin/ui/Toast'; // ✅
 import './admin.css';
 
 export const metadata: Metadata = {
@@ -23,17 +24,9 @@ export const metadata: Metadata = {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const year = new Date().getFullYear();
 
-  function toggleCollapsed() {
-    const body = document.body;
-    const next = !body.classList.contains('sidebar-collapsed');
-    body.classList.toggle('sidebar-collapsed', next);
-    try {
-      localStorage.setItem('admin.sidebar.collapsed', String(next));
-    } catch {}
-  }
-
   return (
     <div className="admin-shell">
+      <Toast /> {/* ✅ global para todo /admin */}
       {/* Accesibilidad */}
       <a href="#admin-main" className="sr-only sr-only-focusable">
         Saltar al contenido
