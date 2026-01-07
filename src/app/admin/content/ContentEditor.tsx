@@ -142,17 +142,17 @@ export default function ContentEditor({
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    const bannersSorted = [...banners]
+      .map((b, idx) => ({ ...b, order: Number.isFinite(b.order) ? b.order : idx }))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
     const payload = {
-      banners: [...banners]
-        .map((b, idx) => ({ ...b, order: Number.isFinite(b.order) ? b.order : idx }))
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+      banners: bannersSorted,
       socialLinks,
       whatsappNumber,
       address,
       logoUrl,
-      banners,
-      socialLinks,
-      // ✅ agregar
       checkoutMode,
     };
 
