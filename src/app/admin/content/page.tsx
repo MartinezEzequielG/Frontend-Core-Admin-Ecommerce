@@ -2,14 +2,18 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import ContentEditor from './ContentEditor';
+import { API } from '@/lib/backend';
 
 async function fetchSiteConfig() {
   const token = (await cookies()).get('token')?.value;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/site`, {
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  if (!token) redirect('/login');
+
+  const res = await fetch(`${API}/admin/site`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     cache: 'no-store',
   });
-  if (res.status === 401) redirect('/admin/login');
+
+  if (res.status === 401) redirect('/login');
   if (!res.ok) throw new Error(await res.text().catch(() => 'Error cargando contenido'));
   return res.json();
 }
@@ -17,15 +21,18 @@ async function fetchSiteConfig() {
 async function saveSiteConfig(formData: FormData) {
   'use server';
   const token = (await cookies()).get('token')?.value;
+  if (!token) redirect('/login');
+
   const payload = JSON.parse(String(formData.get('payload') || '{}'));
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/site`, {
+  const res = await fetch(`${API}/admin/site`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify(payload), // ✅ ahora incluye logoUrl
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
     cache: 'no-store',
   });
-  if (res.status === 401) redirect('/admin/login');
+
+  if (res.status === 401) redirect('/login');
   if (!res.ok) throw new Error(await res.text().catch(() => 'Error guardando contenido'));
 
   revalidatePath('/admin/content');
