@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import ContentEditor from './ContentEditor';
 import { API } from '@/lib/backend';
+import Toast from '@/components/admin/ui/Toast';
 
 async function fetchSiteConfig() {
   const token = (await cookies()).get('token')?.value;
@@ -38,11 +39,17 @@ async function saveSiteConfig(formData: FormData) {
   revalidatePath('/admin/content');
 }
 
-export default async function AdminContentPage() {
+export default async function AdminContentPage({
+  searchParams,
+}: {
+  searchParams?: { saved?: string };
+}) {
+  const saved = searchParams?.saved === '1';
   const cfg = await fetchSiteConfig();
 
   return (
     <main className="admin-page">
+      <Toast message={saved ? 'Cambios guardados correctamente' : undefined} />
       <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Contenido del Store</h1>
       <p className="section-help">Editá banners, logo y redes sociales sin tocar código.</p>
 

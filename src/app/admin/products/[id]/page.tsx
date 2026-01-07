@@ -5,7 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import ProductEditNav from './ProductEditNav';
-import { redirect } from 'next/navigation'; // ✅ agregar
+import { redirect } from 'next/navigation';
+import Toast from '@/components/admin/ui/Toast'; // ✅ agregar
 
 function normalizeBase(raw: string) {
   const base = raw.replace(/\/+$/, '');
@@ -48,14 +49,19 @@ async function setCategory(productId: number, formData: FormData) {
   'use server';
   const token = (await cookies()).get('token')?.value;
   const categoryId = formData.get('categoryId') ? Number(formData.get('categoryId')) : null;
+
   const res = await fetch(`${API}/admin/products/${productId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ categoryId }),
     cache: 'no-store',
   });
+
   if (!res.ok) throw new Error(await res.text());
   revalidatePath(`/admin/products/${productId}`);
+
+  // ✅ toast de éxito
+  redirect(`/admin/products/${productId}?saved=1#basics`);
 }
 
 // NUEVO: Server Action para flags activo/destacado
@@ -63,7 +69,11 @@ async function updateFlags(productId: number, formData: FormData) {
   'use server';
   const active = formData.get('active') === 'on';
   const featured = formData.get('featured') === 'on';
+
   await patchProduct(productId, { active, featured });
+
+  // ✅ toast de éxito
+  redirect(`/admin/products/${productId}?saved=1#basics`);
 }
 
 type AdminCategory = { id: number; name: string; slug: string };
@@ -105,11 +115,19 @@ type AdminProductDetail = {
   freeShipping?: boolean;
 };
 
-export default async function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: { saved?: string };
+}) {
   const { id } = await params;
 
   const p = await backendFetch<AdminProductDetail>(`/admin/products/${id}`);
   if (!p) return <main className="admin-content"><p>Acceso denegado.</p></main>;
+
+  const saved = searchParams?.saved === '1';
 
   const categories = await backendFetch<AdminCategory[]>('/admin/categories');
 
@@ -120,6 +138,8 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
 
   return (
     <main className="admin-page">
+      <Toast message={saved ? 'Cambios guardados correctamente' : undefined} />
+
       {/* Header sticky con acciones siempre visibles */}
       <header className="product-edit-header" style={{ position: 'sticky', top: 0, zIndex: 30, background: 'var(--admin-bg)', paddingTop: 12, paddingBottom: 12 }}>
         <div>
@@ -414,6 +434,7 @@ async function generateVariants(productId: number) {
 function EditBasics({ product, formId = 'product-basics-form' }: { product: any; formId?: string }) {
   const save = async (formData: FormData) => {
     'use server';
+
     const name = String(formData.get('name') || '').trim();
     const basePrice = Number(formData.get('basePrice') || 0);
     const salePrice = formData.get('salePrice') ? Number(formData.get('salePrice')) : null;
@@ -440,6 +461,9 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
       isHot,
       freeShipping,
     });
+
+    // ✅ toast de éxito
+    redirect(`/admin/products/${product.id}?saved=1#basics`);
   };
 
   return (
