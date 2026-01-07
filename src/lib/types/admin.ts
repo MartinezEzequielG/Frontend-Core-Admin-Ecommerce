@@ -4,8 +4,19 @@ export type AdminProductSummary = {
   id: number;
   name: string;
   slug: string;
+
   sku?: string | null;
-  featured?: boolean;
+
+  basePrice: number;
+  salePrice?: number | null;
+
   active?: boolean;
+  featured?: boolean;
+
+  createdAt: string;
+
+  // ✅ lo usa /admin/products/page.tsx
+  totalStock?: number;
+
   category?: AdminCategoryRef | null;
 };

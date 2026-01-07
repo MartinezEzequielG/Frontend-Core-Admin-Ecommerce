@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import ProductEditNav from './ProductEditNav';
+import { redirect } from 'next/navigation'; // ✅ agregar
 
 function normalizeBase(raw: string) {
   const base = raw.replace(/\/+$/, '');
@@ -65,12 +66,56 @@ async function updateFlags(productId: number, formData: FormData) {
   await patchProduct(productId, { active, featured });
 }
 
+type AdminCategory = { id: number; name: string; slug: string };
+
+type AdminProductOptionValue = { id: number; value: string };
+type AdminProductOption = { id: number; name: string; values?: AdminProductOptionValue[] };
+
+type AdminProductImage = { id: number; url: string; position?: number | null };
+
+type AdminProductVariant = {
+  id: number;
+  sku?: string | null;
+  price?: number | null;
+  active?: boolean;
+  stock?: any; // en tu backend lo estás mapeando desde onHand; lo dejamos flexible
+  options?: any[];
+};
+
+type AdminProductDetail = {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  basePrice: number;
+  salePrice?: number | null;
+  sku?: string | null;
+  active?: boolean;
+  featured?: boolean;
+  categoryId?: number | null;
+
+  images?: AdminProductImage[];
+  options?: AdminProductOption[];
+  variants?: AdminProductVariant[];
+
+  discountTransfer?: number | null;
+  discountMp?: number | null;
+  isNew?: boolean;
+  isHot?: boolean;
+  freeShipping?: boolean;
+};
+
 export default async function ProductDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const p = await backendFetch(`/admin/products/${id}`);
+
+  const p = await backendFetch<AdminProductDetail>(`/admin/products/${id}`);
   if (!p) return <main className="admin-content"><p>Acceso denegado.</p></main>;
-  const categories = await backendFetch('/admin/categories');
-  const audits = await backendFetch<any[]>(`/admin/products/${id}/audits`).catch(() => []);
+
+  const categories = await backendFetch<AdminCategory[]>('/admin/categories');
+
+  const audits =
+    (await backendFetch<any[]>(`/admin/products/${id}/audits`).catch(() => null)) ?? [];
+
   const hasOptions = (p.options || []).length > 0;
 
   return (

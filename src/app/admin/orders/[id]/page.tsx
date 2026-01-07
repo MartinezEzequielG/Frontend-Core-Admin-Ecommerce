@@ -5,6 +5,44 @@ import Link from 'next/link';
 import PageHeader from '@/components/admin/ui/PageHeader';
 import OrderStatusBadge from '@/components/admin/ui/OrderStatusBadge';
 
+// ✅ tipo mínimo para lo que usás en esta página
+type AdminOrderDetail = {
+  id: number;
+  status: string;
+  total: number;
+  shippingCost?: number | null;
+  createdAt: string;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  trackingCode?: string | null;
+
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
+
+  userId?: number | null;
+  user?: { id: number; email: string; name?: string | null } | null;
+
+  shippingAddress?: {
+    fullName?: string | null;
+    phone?: string | null;
+    street?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    country?: string | null;
+  } | null;
+
+  items?: Array<{
+    id: number;
+    quantity: number;
+    unitPrice: number;
+    productName?: string | null;
+    variantSku?: string | null;
+    product?: { id: number; name: string; slug: string } | null;
+    productVariant?: { sku?: string | null } | null;
+  }>;
+};
+
 async function ship(orderId: number, formData: FormData) {
   'use server';
   const token = (await cookies()).get('token')?.value;
@@ -67,7 +105,9 @@ function dt(v: any) {
 
 export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const o = await backendFetch(`/admin/orders/${id}`);
+
+  // ✅ tipar respuesta
+  const o = await backendFetch<AdminOrderDetail>(`/admin/orders/${id}`);
   if (!o) return <main className="admin-content"><p>Acceso denegado.</p></main>;
 
   const customerName = o.user?.name ?? o.shippingAddress?.fullName ?? 'Invitado';

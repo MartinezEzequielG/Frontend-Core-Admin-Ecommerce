@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation';
 import { slugify } from '@/lib/slug';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
-import { backendFetch } from '@/lib/backend';
+import { API, backendFetch } from '@/lib/backend';
+
+type AdminCategory = { id: number; name: string; slug: string };
 
 async function createProduct(formData: FormData) {
   'use server';
@@ -22,24 +24,27 @@ async function createProduct(formData: FormData) {
   if (!slug) throw new Error('Slug inválido');
   if (Number.isNaN(basePrice) || basePrice <= 0) throw new Error('Precio base inválido');
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products`, {
+  const res = await fetch(`${API}/admin/products`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ name, slug, basePrice, salePrice, sku, categoryId, featured, active }),
     cache: 'no-store',
   });
+
   if (!res.ok) {
-    // opcional: leer el texto para debug, pero no envolver redirect
     const msg = await res.text().catch(() => 'Error al crear');
     throw new Error(msg);
   }
+
   const prod = await res.json();
   revalidatePath(`/admin/products/${prod.id}`);
   redirect(`/admin/products/${prod.id}`);
 }
 
 export default async function NewProductPage() {
-  const categories = await backendFetch<any[]>('/admin/categories').catch(() => []);
+  const categories =
+    (await backendFetch<AdminCategory[]>('/admin/categories').catch(() => null)) ?? [];
+
   return (
     <main className="admin-content">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -81,7 +86,7 @@ export default async function NewProductPage() {
             <label className="text-sm" htmlFor="categoryId">Categoría</label>
             <select id="categoryId" name="categoryId" className="select" defaultValue="">
               <option value="">Sin categoría</option>
-              {categories.map((c: any) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>

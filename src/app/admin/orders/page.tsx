@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { backendFetch } from '@/lib/backend';
+import { API, backendFetch } from '@/lib/backend';
 import PageHeader from '@/components/admin/ui/PageHeader';
 import EmptyState from '@/components/admin/ui/EmptyState';
 import ErrorState from '@/components/admin/ui/ErrorState';
@@ -23,8 +23,12 @@ export default async function OrdersList({
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
 
-    const { items, total } = await backendFetch<{ items: any[]; total: number }>(`/admin/orders?${qs.toString()}`);
-    const exportUrl = `${process.env.BACKEND_API_URL}/admin/orders/export`;
+    const data = await backendFetch<{ items: any[]; total: number }>(`/admin/orders?${qs.toString()}`);
+    if (!data) return <main className="admin-content"><p>Acceso denegado.</p></main>;
+
+    const { items, total } = data;
+
+    const exportUrl = `${API}/admin/orders/export`;
 
     const tabs = [
       { k: '', label: 'Todas' },

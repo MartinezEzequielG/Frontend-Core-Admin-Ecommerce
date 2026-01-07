@@ -2,6 +2,19 @@ import { backendFetch } from '@/lib/backend';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+type StoreSettings = {
+  name: string;
+  address?: string | null;
+  whatsappNumber?: string | null;
+  contactEmail?: string | null;
+  ownerPhone?: string | null;
+  ownerFullName?: string | null;
+  ownerEmail?: string | null;
+  documentType?: string | null;
+  documentNumber?: string | null;
+  currency?: string | null;
+};
+
 async function saveSettings(formData: FormData) {
   'use server';
 
@@ -34,7 +47,10 @@ export default async function AdminSettingsPage({
   searchParams: Promise<{ saved?: string }>;
 }) {
   const { saved } = await searchParams;
-  const settings = await backendFetch('/admin/store-settings');
+
+  const settings =
+    (await backendFetch<StoreSettings>('/admin/store-settings').catch(() => null)) ??
+    { name: '', currency: 'ARS' };
 
   return (
     <main className="admin-page">

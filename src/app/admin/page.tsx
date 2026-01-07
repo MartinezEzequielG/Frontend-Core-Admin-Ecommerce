@@ -159,17 +159,16 @@ function KpiCard({
 }
 
 export default async function AdminDashboard() {
-  const [stats, recentOrders] = await Promise.all([
-    backendFetch<AdminStats>('/admin/stats').catch(() => ({
-      ordersToday: 0,
-      salesToday: 0,
-      users: 0,
-      productsActive: 0,
-    })),
-    backendFetch<OrdersResponse>('/admin/orders?limit=6&sort=createdAt:desc').catch(() => ({
-      items: [],
-    })),
+  const [statsRaw, recentOrdersRaw] = await Promise.all([
+    backendFetch<AdminStats>('/admin/stats').catch(() => null),
+    backendFetch<OrdersResponse>('/admin/orders?limit=6&sort=createdAt:desc').catch(() => null),
   ]);
+
+  const stats: AdminStats =
+    statsRaw ?? { ordersToday: 0, salesToday: 0, users: 0, productsActive: 0 };
+
+  const recentOrders: OrdersResponse =
+    recentOrdersRaw ?? { items: [] };
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
