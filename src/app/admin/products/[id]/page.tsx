@@ -1,4 +1,4 @@
-import { backendFetch } from '@/lib/backend';
+import { API, backendFetch } from '@/lib/backend';
 import ImagesClient from './ImagesClient';
 import VariantsClient from './VariantsClient';
 import { revalidatePath } from 'next/cache';
@@ -48,7 +48,7 @@ async function setCategory(productId: number, formData: FormData) {
   'use server';
   const token = (await cookies()).get('token')?.value;
   const categoryId = formData.get('categoryId') ? Number(formData.get('categoryId')) : null;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/products/${productId}`, {
+  const res = await fetch(`${API}/admin/products/${productId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ categoryId }),
