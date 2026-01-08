@@ -7,6 +7,7 @@ import Link from 'next/link';
 import ProductEditNav from './ProductEditNav';
 import { redirect } from 'next/navigation';
 import Toast from '@/components/admin/ui/Toast'; // ✅ agregar
+import PriceTool from '@/app/admin/products/PriceTool';
 
 function normalizeBase(raw: string) {
   const base = raw.replace(/\/+$/, '');
@@ -560,6 +561,9 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
         />
       </div>
 
+      {/* bloque de precios existente */}
+      {/* ✅ Calculadora para autocompletar basePrice + discountTransfer */}
+      <PriceTool formId={formId} defaultCoef={0.8} />
     </form>
   );
 }
