@@ -1,8 +1,8 @@
-import { backendFetch } from '@/lib/backend';
-import { cookies } from 'next/headers';
-import { revalidatePath } from 'next/cache';
+import { backendFetch, API } from '@/lib/backend';
 import Link from 'next/link';
-import { redirect } from 'next/navigation'; // ✅
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 
 type AdminCategory = {
   id: number;
@@ -62,17 +62,22 @@ async function deleteCategory(id: number) {
   'use server';
   const token = (await cookies()).get('token')?.value;
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/categories/${id}`, {
+  const res = await fetch(`${API}/admin/categories/${id}`, {
     method: 'DELETE',
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     cache: 'no-store',
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  revalidatePath('/admin/categories');
+  if (res.status === 401) redirect('/login');
 
-  // ✅ evita quedarse en /admin/categories/[id] mostrando "No encontrada"
-  redirect('/admin/categories');
+  if (!res.ok) {
+    // ✅ no romper la app (digest). Mostrar toast vía querystring
+    revalidatePath('/admin/categories');
+    redirect('/admin/categories?error=1');
+  }
+
+  revalidatePath('/admin/categories');
+  redirect('/admin/categories?saved=1');
 }
 
 function EditForm({ cat }: { cat: any }) {
