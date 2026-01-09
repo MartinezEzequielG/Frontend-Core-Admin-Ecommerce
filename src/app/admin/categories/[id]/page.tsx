@@ -2,6 +2,7 @@ import { backendFetch } from '@/lib/backend';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
+import { redirect } from 'next/navigation'; // ✅
 
 type AdminCategory = {
   id: number;
@@ -60,13 +61,18 @@ async function updateCategory(id: number, formData: FormData) {
 async function deleteCategory(id: number) {
   'use server';
   const token = (await cookies()).get('token')?.value;
+
   const res = await fetch(`${process.env.BACKEND_API_URL}/admin/categories/${id}`, {
     method: 'DELETE',
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     cache: 'no-store',
   });
+
   if (!res.ok) throw new Error(await res.text());
   revalidatePath('/admin/categories');
+
+  // ✅ evita quedarse en /admin/categories/[id] mostrando "No encontrada"
+  redirect('/admin/categories');
 }
 
 function EditForm({ cat }: { cat: any }) {

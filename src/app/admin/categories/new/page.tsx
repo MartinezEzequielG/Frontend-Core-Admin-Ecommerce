@@ -28,9 +28,10 @@ async function createCategory(formData: FormData) {
 export default async function NewCategory({
   searchParams,
 }: {
-  searchParams?: { parentId?: string };
+  searchParams?: { parentId?: string } | Promise<{ parentId?: string }>;
 }) {
-  const parentId = searchParams?.parentId ?? '';
+  const sp = await Promise.resolve(searchParams as any);
+  const parentId = sp?.parentId ?? '';
 
   const categories = (await backendFetch<any[]>('/admin/categories').catch(() => [])) ?? [];
 
