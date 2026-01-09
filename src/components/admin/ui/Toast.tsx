@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
+type ToastVariant = 'success' | 'default' | 'error';
+type ToastState = { msg: string; v: ToastVariant } | null;
+
+function normalizeVariant(v?: string): ToastVariant | undefined {
+  if (v === 'success' || v === 'default' || v === 'error') return v;
+  return undefined;
+}
+
 export default function Toast({
   message,
   variant,
@@ -14,7 +22,7 @@ export default function Toast({
   durationMs = 2500,
 }: {
   message?: string;
-  variant?: 'success' | 'default' | 'error';
+  variant?: ToastVariant;
   successParam?: string;
   errorParam?: string;
   successMessage?: string;
@@ -25,13 +33,12 @@ export default function Toast({
   const router = useRouter();
   const pathname = usePathname();
 
-  // ✅ valores primitivos (no dependemos del objeto searchParams)
   const savedVal = sp?.get(successParam) ?? '';
   const errorVal = sp?.get(errorParam) ?? '';
 
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
-  const [current, setCurrent] = useState<{ msg: string; v: 'success' | 'default' | 'error' } | null>(null);
+  const [current, setCurrent] = useState<ToastState>(null);
 
   const timerRef = useRef<number | null>(null);
   const lastTokenRef = useRef<string>('');
@@ -42,9 +49,11 @@ export default function Toast({
     const saved = savedVal === '1';
     const error = errorVal === '1';
 
-    const next =
+    const v = normalizeVariant(variant) ?? 'default';
+
+    const next: ToastState =
       message
-        ? { msg: message, v: variant ?? 'default' }
+        ? { msg: message, v }
         : saved
           ? { msg: successMessage, v: 'success' }
           : error
@@ -53,14 +62,12 @@ export default function Toast({
 
     if (!next) return;
 
-    // ✅ token único por evento (incluye ruta + params)
     const token = message
-      ? `m:${pathname}:${message}:${variant ?? 'default'}`
+      ? `m:${pathname}:${message}:${next.v}`
       : saved
         ? `saved:${pathname}`
         : `error:${pathname}`;
 
-    // ✅ si es el mismo evento, NO reiniciar timer
     if (lastTokenRef.current === token) return;
     lastTokenRef.current = token;
 
