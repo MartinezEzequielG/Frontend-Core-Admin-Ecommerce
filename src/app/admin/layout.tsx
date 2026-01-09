@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react'; // ✅ add
 import LogoutButton from '@/components/LogoutButton';
 import AdminNav from '@/components/admin/AdminNav';
 import AdminSidebarToggle from '@/components/admin/AdminSidebarToggle';
@@ -7,7 +8,7 @@ import AdminSidebarOverlay from '@/components/admin/AdminSidebarOverlay';
 import AdminBreadcrumbs from '@/components/admin/AdminBreadcrumbs';
 import AdminBrandToggle from '@/components/admin/AdminBrandToggle';
 import InnovaBrand from '@/components/admin/ui/InnovaBrand';
-import Toast from '@/components/admin/ui/Toast'; // ✅
+import Toast from '@/components/admin/ui/Toast';
 import './admin.css';
 
 export const metadata: Metadata = {
@@ -26,7 +27,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="admin-shell">
-      <Toast /> {/* ✅ global para todo /admin */}
+      {/* ✅ Wrap Toast in Suspense to satisfy useSearchParams */}
+      <Suspense fallback={null}>
+        <Toast />
+      </Suspense>
+
       {/* Accesibilidad */}
       <a href="#admin-main" className="sr-only sr-only-focusable">
         Saltar al contenido
