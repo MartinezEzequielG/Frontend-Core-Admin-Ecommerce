@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-type ToastVariant = 'success' | 'default' | 'error';
+type ToastVariant = 'success' | 'default' | 'error' | 'info';
 type ToastState = { msg: string; v: ToastVariant } | null;
 
-function normalizeVariant(v?: string): ToastVariant | undefined {
-  if (v === 'success' || v === 'default' || v === 'error') return v;
-  return undefined;
+function normalizeVariant(v?: string): ToastVariant {
+  if (v === 'success' || v === 'default' || v === 'error' || v === 'info') return v;
+  return 'default';
 }
 
 export default function Toast({
@@ -33,68 +33,70 @@ export default function Toast({
   const router = useRouter();
   const pathname = usePathname();
 
-  const savedVal = sp?.get(successParam) ?? '';
+  // Permite mensajes personalizados en ?error=...
   const errorVal = sp?.get(errorParam) ?? '';
+  const savedVal = sp?.get(successParam) ?? '';
 
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
   const [current, setCurrent] = useState<ToastState>(null);
 
   const timerRef = useRef<number | null>(null);
+  const clearRef = useRef<number | null>(null);
   const lastTokenRef = useRef<string>('');
 
   useEffect(() => setMounted(true), []);
 
+  // 1) Decide el “contenido” del toast a mostrar (por props o query params)
   useEffect(() => {
-    const saved = savedVal === '1';
-    const error = errorVal === '1';
+    let next: ToastState = null;
 
-    const v = normalizeVariant(variant) ?? 'default';
-
-    const next: ToastState =
-      message
-        ? { msg: message, v }
-        : saved
-          ? { msg: successMessage, v: 'success' }
-          : error
-            ? { msg: errorMessage, v: 'error' }
-            : null;
+    // Mensaje explícito (prop)
+    if (message) {
+      next = { msg: message, v: normalizeVariant(variant) };
+    }
+    // Mensaje de éxito por query
+    else if (savedVal === '1') {
+      next = { msg: successMessage, v: 'success' };
+    }
+    // Mensaje de error por query (personalizado o genérico)
+    else if (errorVal) {
+      next = {
+        msg: errorVal !== '1' ? errorVal : errorMessage,
+        v: 'error',
+      };
+    }
 
     if (!next) return;
 
-    const token = message
-      ? `m:${pathname}:${message}:${next.v}`
-      : saved
-        ? `saved:${pathname}`
-        : `error:${pathname}`;
-
+    // Evita mostrar el mismo toast repetido
+    const token = `${pathname}:${next.msg}:${next.v}`;
     if (lastTokenRef.current === token) return;
     lastTokenRef.current = token;
 
     setCurrent(next);
-    setShow(true);
 
-    // ✅ limpiar params (una sola vez) para que no reaparezca
+    // Limpiar params de la URL solo si estaban presentes
+    // (no hagas push, usá replace para no contaminar historial)
     try {
       const url = new URL(window.location.href);
-      url.searchParams.delete(successParam);
-      url.searchParams.delete(errorParam);
-      router.replace(`${pathname}${url.search}${url.hash}`, { scroll: false });
+      let changed = false;
+
+      if (url.searchParams.has(successParam)) {
+        url.searchParams.delete(successParam);
+        changed = true;
+      }
+      if (url.searchParams.has(errorParam)) {
+        url.searchParams.delete(errorParam);
+        changed = true;
+      }
+
+      if (changed) {
+        router.replace(`${pathname}${url.search}${url.hash}`, { scroll: false });
+      }
     } catch {
       // noop
     }
-
-    // ✅ asegurar auto-hide
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => {
-      setShow(false);
-      window.setTimeout(() => setCurrent(null), 180);
-    }, durationMs);
-
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    };
   }, [
     pathname,
     router,
@@ -106,8 +108,43 @@ export default function Toast({
     errorParam,
     successMessage,
     errorMessage,
-    durationMs,
   ]);
+
+  // 2) Controla la “vida” del toast (animación + autocierre)
+  useEffect(() => {
+    if (!current) return;
+
+    // Mostrar
+    setShow(true);
+
+    // Limpiar timers previos
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    if (clearRef.current) window.clearTimeout(clearRef.current);
+
+    // Auto-hide
+    timerRef.current = window.setTimeout(() => {
+      setShow(false);
+      clearRef.current = window.setTimeout(() => setCurrent(null), 180);
+    }, durationMs);
+
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      if (clearRef.current) window.clearTimeout(clearRef.current);
+      timerRef.current = null;
+      clearRef.current = null;
+    };
+  }, [current, durationMs]);
+
+  // Cierre manual
+  function handleClose() {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    if (clearRef.current) window.clearTimeout(clearRef.current);
+    timerRef.current = null;
+    clearRef.current = null;
+
+    setShow(false);
+    clearRef.current = window.setTimeout(() => setCurrent(null), 180);
+  }
 
   const styles = useMemo(() => {
     const base: React.CSSProperties = {
@@ -125,7 +162,10 @@ export default function Toast({
       textAlign: 'center',
       opacity: show ? 1 : 0,
       transition: 'opacity 180ms ease',
-      pointerEvents: 'none',
+      pointerEvents: 'auto',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
     };
 
     if (current?.v === 'success') {
@@ -134,6 +174,9 @@ export default function Toast({
     if (current?.v === 'error') {
       return { ...base, background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', color: 'white' };
     }
+    if (current?.v === 'info') {
+      return { ...base, background: 'linear-gradient(135deg, #2563eb 0%, #60a5fa 100%)', color: 'white' };
+    }
     return { ...base, background: '#111827', color: 'white' };
   }, [current?.v, show]);
 
@@ -141,7 +184,27 @@ export default function Toast({
 
   return createPortal(
     <div style={styles} role="status" aria-live="polite">
-      {current.msg}
+      <span style={{ flex: 1 }}>{current.msg}</span>
+      <button
+        type="button"
+        aria-label="Cerrar"
+        onClick={handleClose}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: 'inherit',
+          fontSize: 18,
+          fontWeight: 900,
+          cursor: 'pointer',
+          marginLeft: 4,
+          opacity: 0.7,
+          transition: 'opacity 0.15s',
+          pointerEvents: 'auto',
+        }}
+        tabIndex={0}
+      >
+        ×
+      </button>
     </div>,
     document.body,
   );

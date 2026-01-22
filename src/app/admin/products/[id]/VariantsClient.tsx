@@ -31,16 +31,21 @@ export default function VariantsClient(props: {
 
   return (
     <div className="form-grid">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <p className="section-help" style={{ margin: 0 }}>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <p className="section-help" style={{ margin: 0, maxWidth: 720 }}>
           <strong>Precio</strong> es <strong>opcional</strong>. Si está vacío, se usa el precio del producto.
           <br />
-          <span style={{ fontSize: 11, opacity: 0.7 }}>Los cambios se guardan automáticamente al salir de cada campo.</span>
+          <span style={{ fontSize: 11, opacity: 0.7 }}>
+            Los cambios se guardan automáticamente al salir de cada campo (cuando la combinación es válida).
+          </span>
         </p>
 
-        <button type="button" className="btn btn-outline" onClick={() => props.addVariantAction()}>
-          + Variante
-        </button>
+        {/* ✅ Ejecutar server action vía form action (más robusto) */}
+        <form action={props.addVariantAction}>
+          <button type="submit" className="btn btn-outline">
+            + Variante
+          </button>
+        </form>
       </div>
 
       {props.variants.length === 0 ? (
@@ -57,7 +62,7 @@ export default function VariantsClient(props: {
               <col style={{ width: 180 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 110 }} />
-              <col style={{ width: 50 }} />
+              <col style={{ width: 60 }} />
             </colgroup>
 
             <thead>
@@ -125,9 +130,7 @@ function VariantRow({
     return out;
   }, [options, v.options]);
 
-  const [selectedValues, setSelectedValues] = useState<Record<number, number | ''>>(
-    initialSelected,
-  );
+  const [selectedValues, setSelectedValues] = useState<Record<number, number | ''>>(initialSelected);
 
   const optionValueIds = Object.values(selectedValues).filter(
     (x): x is number => typeof x === 'number',
@@ -144,24 +147,20 @@ function VariantRow({
       .join(' / ') || 'Sin combinación';
 
   const fallback = salePrice ?? basePrice;
-
   const isComboValid = options.every((opt) => selectedValues[opt.id]);
 
-  // 🔽 AUTO-GUARDADO unificado
   const autoSave = () => {
     if (pending) return;
     if (!isComboValid) return;
 
-    // si no cambió nada, no llamamos al server
-    if (
-      stock === (v.stock ?? 0) &&
-      (v.sku ?? '') === sku &&
-      (v.price != null ? String(v.price) : '') === price.trim() &&
-      (v.active ?? true) === active &&
-      JSON.stringify(initialSelected) === JSON.stringify(selectedValues)
-    ) {
-      return;
-    }
+    const changed =
+      stock !== (v.stock ?? 0) ||
+      (v.sku ?? '') !== sku ||
+      (v.price != null ? String(v.price) : '') !== price.trim() ||
+      (v.active ?? true) !== active ||
+      JSON.stringify(initialSelected) !== JSON.stringify(selectedValues);
+
+    if (!changed) return;
 
     startTransition(() =>
       onSave({
@@ -175,14 +174,16 @@ function VariantRow({
   };
 
   return (
-    <tr>
+    <tr style={{ opacity: pending ? 0.75 : 1 }}>
       <td>#{v.id}</td>
 
       <td>
         <div className="variant-combo">
           <div className="cell-stack">
             <span className="cell-title">{comboLabel}</span>
-            <span className="cell-meta">Asigná 1 valor por atributo</span>
+            <span className="cell-meta">
+              Asigná 1 valor por atributo {isComboValid ? '' : '· Falta completar combinación'}
+            </span>
           </div>
 
           <div className="variant-combo__selects">
@@ -265,8 +266,8 @@ function VariantRow({
             checked={active}
             onChange={(e) => {
               setActive(e.target.checked);
-              // Auto-guardamos al cambiar el checkbox
-              setTimeout(autoSave, 100);
+              // micro-delay para tomar el nuevo estado
+              setTimeout(autoSave, 60);
             }}
           />{' '}
           Sí
@@ -274,54 +275,54 @@ function VariantRow({
       </td>
 
       <td style={{ textAlign: 'center' }}>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => {
+        {/* ✅ Delete vía form action: robusto y sin onClick a server action */}
+        <form
+          action={async () => {
             if (!confirm('¿Eliminar esta variante?')) return;
             startTransition(() => onDelete());
           }}
-          className="btn-icon-delete"
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 8,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: pending ? 0.5 : 1,
-            borderRadius: 6,
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            if (!pending) {
-              e.currentTarget.style.background = '#fee2e2';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'none';
-          }}
-          aria-label="Eliminar variante"
-          title="Eliminar variante"
         >
-          {/* Ícono de tacho de basura SVG con color rojo */}
-          <svg 
-            width="18" 
-            height="18" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="#dc2626" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
+          <button
+            type="submit"
+            disabled={pending}
+            className="btn-icon-delete"
+            aria-label="Eliminar variante"
+            title="Eliminar variante"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 8,
+              cursor: pending ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 8,
+              transition: 'background 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!pending) e.currentTarget.style.background = '#fee2e2';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            <line x1="10" y1="11" x2="10" y2="17" />
-            <line x1="14" y1="11" x2="14" y2="17" />
-          </svg>
-        </button>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#dc2626"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </button>
+        </form>
       </td>
     </tr>
   );
