@@ -42,9 +42,11 @@ async function saveSiteConfig(formData: FormData) {
 export default async function AdminContentPage({
   searchParams,
 }: {
-  searchParams?: { saved?: string };
+  searchParams?: Promise<{ saved?: string }>;
 }) {
-  const saved = searchParams?.saved === '1';
+  const sp = searchParams ? await searchParams : {};
+  const saved = sp?.saved === '1';
+
   const cfg = await fetchSiteConfig();
 
   return (
@@ -52,7 +54,6 @@ export default async function AdminContentPage({
       <Toast message={saved ? 'Cambios guardados correctamente' : undefined} />
       <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Contenido del Store</h1>
       <p className="section-help">Editá banners, logo y redes sociales sin tocar código.</p>
-
       <ContentEditor initial={cfg} saveAction={saveSiteConfig} />
     </main>
   );

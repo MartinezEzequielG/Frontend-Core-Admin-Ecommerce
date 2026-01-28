@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Suspense } from 'react'; // ✅ add
+import { Suspense } from 'react';
 import LogoutButton from '@/components/LogoutButton';
 import AdminNav from '@/components/admin/AdminNav';
 import AdminSidebarToggle from '@/components/admin/AdminSidebarToggle';
@@ -10,11 +10,12 @@ import AdminBrandToggle from '@/components/admin/AdminBrandToggle';
 import InnovaBrand from '@/components/admin/ui/InnovaBrand';
 import Toast from '@/components/admin/ui/Toast';
 import './admin.css';
+import { backendFetch } from '@/lib/backend';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SupleFsa Admin',
-    template: '%s | SupleFsa Admin',
+    default: 'Hamsa Admin',
+    template: '%s | Hamsa Admin',
   },
   icons: {
     icon: [{ url: '/favicon.ico' }, { url: '/icon.png', type: 'image/png' }],
@@ -22,12 +23,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const year = new Date().getFullYear();
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Valida la sesión: si el token es inválido o falta, backendFetch redirige a /login
+  await backendFetch('/auth/me');
 
   return (
     <div className="admin-shell">
-      {/* ✅ Wrap Toast in Suspense to satisfy useSearchParams */}
       <Suspense fallback={null}>
         <Toast />
       </Suspense>
@@ -76,7 +77,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </main>
 
         <footer className="admin-footer" role="contentinfo">
-          © {year} SuplementacionFsa Admin by <InnovaBrand />
+          © {new Date().getFullYear()} Hamsa Admin by <InnovaBrand />
         </footer>
       </section>
     </div>

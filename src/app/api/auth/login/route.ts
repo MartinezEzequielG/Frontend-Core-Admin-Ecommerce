@@ -9,31 +9,35 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const upstream = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
       body: JSON.stringify(body),
-      cache: 'no-store',
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
+    const data = await upstream.json().catch(() => ({}));
+
+    if (!upstream.ok) {
       return NextResponse.json(
-        { message: text || 'Invalid credentials' },
-        { status: res.status },
+        { message: data?.message || 'Invalid credentials' },
+        { status: upstream.status },
       );
     }
 
-    const data = await res.json(); // { access_token, user }
     const resp = NextResponse.json({ user: data.user });
 
-    resp.cookies.set('token', data.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60,
-    });
+    // @ts-expect-error: getSetCookie no está tipado en todos los entornos
+    const setCookies: string[] | undefined = upstream.headers.getSetCookie?.();
+
+    if (setCookies?.length) {
+      for (const c of setCookies) resp.headers.append('set-cookie', c);
+    } else {
+      const single = upstream.headers.get('set-cookie');
+      if (single) resp.headers.append('set-cookie', single);
+    }
 
     return resp;
   } catch (e: any) {

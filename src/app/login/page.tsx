@@ -82,7 +82,6 @@ export default function LoginPage() {
         </form>
       </section>
 
-      {/* ✅ afuera de la card */}
       <footer className="login-footer-outside">
         Hecho por <InnovaBrand />
       </footer>
