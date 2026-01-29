@@ -6,7 +6,7 @@ function cookieBase() {
     path: '/',
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'none' : 'lax' as const,
+    sameSite: isProd ? 'none' : 'lax' as 'none' | 'lax',
   };
 }
 
