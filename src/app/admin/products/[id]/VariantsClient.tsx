@@ -7,18 +7,34 @@ function money(v: any) {
   return `$${n.toFixed(2)}`;
 }
 
+// ✅ normalizador client-safe (sin depender de funciones del server)
+function normalizeImg(raw?: string | null) {
+  const r = (raw || '').trim();
+  if (!r) return '/placeholder.svg';
+  if (r.startsWith('http://') || r.startsWith('https://')) return r;
+  if (r.startsWith('/uploads/')) return r;
+  if (r.startsWith('uploads/')) return `/${r}`;
+  return r.startsWith('/') ? r : `/${r}`;
+}
+
 type UpsertPayload = {
   sku?: string | null;
   price?: number | null;
   stock?: number;
   active?: boolean;
   optionValueIds?: number[];
+  imageId?: number | null; // ✅ NUEVO
 };
+
+type AdminProductImage = { id: number; url: string; position?: number | null };
+
+const VARIANT_COL_WIDTHS = [80, 520, 220, 190, 180, 120, 110, 60] as const;
 
 export default function VariantsClient(props: {
   productId: number;
   variants: any[];
   options: any[];
+  images: AdminProductImage[]; // ✅ NUEVO
   addVariantAction: () => Promise<any>;
   upsertVariantAction: (variant: { id: number } & UpsertPayload) => Promise<any>;
   deleteVariantAction: (id: number) => Promise<any>;
@@ -26,6 +42,7 @@ export default function VariantsClient(props: {
   salePrice?: number | null;
 }) {
   const options = props.options || [];
+  const images = props.images || [];
   const basePrice = Number(props.basePrice ?? 0);
   const salePrice = props.salePrice == null ? null : Number(props.salePrice);
 
@@ -40,7 +57,6 @@ export default function VariantsClient(props: {
           </span>
         </p>
 
-        {/* ✅ Ejecutar server action vía form action (más robusto) */}
         <form action={props.addVariantAction}>
           <button type="submit" className="btn btn-outline">
             + Variante
@@ -56,19 +72,16 @@ export default function VariantsClient(props: {
         <div className="table-wrap">
           <table className="table variants-table">
             <colgroup>
-              <col style={{ width: 80 }} />
-              <col style={{ width: 520 }} />
-              <col style={{ width: 190 }} />
-              <col style={{ width: 180 }} />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 60 }} />
+              {VARIANT_COL_WIDTHS.map((w, i) => (
+                <col key={i} style={{ width: w }} />
+              ))}
             </colgroup>
 
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Combinación</th>
+                <th>Imagen</th>
                 <th>SKU</th>
                 <th>Precio</th>
                 <th>Stock</th>
@@ -83,6 +96,7 @@ export default function VariantsClient(props: {
                   key={v.id}
                   v={v}
                   options={options}
+                  images={images}
                   basePrice={basePrice}
                   salePrice={salePrice}
                   onSave={(data) => props.upsertVariantAction({ id: v.id, ...data })}
@@ -100,6 +114,7 @@ export default function VariantsClient(props: {
 function VariantRow({
   v,
   options,
+  images,
   basePrice,
   salePrice,
   onSave,
@@ -107,6 +122,7 @@ function VariantRow({
 }: {
   v: any;
   options: any[];
+  images: AdminProductImage[];
   basePrice: number;
   salePrice: number | null;
   onSave: (data: UpsertPayload) => Promise<any>;
@@ -119,12 +135,13 @@ function VariantRow({
   const [stock, setStock] = useState<number>(v.stock ?? 0);
   const [active, setActive] = useState<boolean>(v.active ?? true);
 
+  // ✅ NUEVO: imagen por variante
+  const [imageId, setImageId] = useState<number | null>(v.imageId ?? null);
+
   const initialSelected: Record<number, number | ''> = useMemo(() => {
     const out: Record<number, number | ''> = {};
     for (const opt of options || []) {
-      const match = (v.options || []).find(
-        (vo: any) => vo?.optionValue && vo.optionValue.optionId === opt.id,
-      );
+      const match = (v.options || []).find((vo: any) => vo?.optionValue && vo.optionValue.optionId === opt.id);
       out[opt.id] = match?.optionValue?.id ?? '';
     }
     return out;
@@ -132,9 +149,7 @@ function VariantRow({
 
   const [selectedValues, setSelectedValues] = useState<Record<number, number | ''>>(initialSelected);
 
-  const optionValueIds = Object.values(selectedValues).filter(
-    (x): x is number => typeof x === 'number',
-  );
+  const optionValueIds = Object.values(selectedValues).filter((x): x is number => typeof x === 'number');
 
   const comboLabel =
     (options || [])
@@ -149,6 +164,9 @@ function VariantRow({
   const fallback = salePrice ?? basePrice;
   const isComboValid = options.every((opt) => selectedValues[opt.id]);
 
+  const selectedImage = imageId ? images.find((im) => im.id === imageId) : null;
+  const previewUrl = normalizeImg(selectedImage?.url ?? v.imageUrl ?? null);
+
   const autoSave = () => {
     if (pending) return;
     if (!isComboValid) return;
@@ -158,7 +176,8 @@ function VariantRow({
       (v.sku ?? '') !== sku ||
       (v.price != null ? String(v.price) : '') !== price.trim() ||
       (v.active ?? true) !== active ||
-      JSON.stringify(initialSelected) !== JSON.stringify(selectedValues);
+      JSON.stringify(initialSelected) !== JSON.stringify(selectedValues) ||
+      (v.imageId ?? null) !== imageId;
 
     if (!changed) return;
 
@@ -169,6 +188,7 @@ function VariantRow({
         stock,
         active,
         optionValueIds,
+        imageId: imageId ?? null,
       }),
     );
   };
@@ -214,14 +234,49 @@ function VariantRow({
         </div>
       </td>
 
+      {/* ✅ IMAGEN */}
       <td>
-        <input
-          className="input"
-          value={sku}
-          onChange={(e) => setSku(e.target.value)}
-          onBlur={autoSave}
-          placeholder="SKU"
-        />
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <img
+              src={previewUrl}
+              alt=""
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                objectFit: 'cover',
+                border: '1px solid rgba(15,23,42,0.12)',
+                background: '#fff',
+              }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--admin-muted)', lineHeight: 1.2 }}>
+              {imageId ? `ID imagen: #${imageId}` : 'Sin imagen'}
+              <div style={{ opacity: 0.7 }}>Se verá en la tienda para esta variante</div>
+            </div>
+          </div>
+
+          <select
+            className="select"
+            value={imageId ?? ''}
+            onChange={(e) => setImageId(e.target.value ? Number(e.target.value) : null)}
+            onBlur={autoSave}
+          >
+            <option value="">Sin imagen</option>
+            {(images || [])
+              .slice()
+              .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
+              .map((im) => (
+                <option key={im.id} value={im.id}>
+                  #{im.position ?? 0} · (id {im.id})
+                </option>
+              ))}
+          </select>
+        </div>
+      </td>
+
+      <td>
+        <input className="input" value={sku} onChange={(e) => setSku(e.target.value)} onBlur={autoSave} placeholder="SKU" />
       </td>
 
       <td>
@@ -266,7 +321,6 @@ function VariantRow({
             checked={active}
             onChange={(e) => {
               setActive(e.target.checked);
-              // micro-delay para tomar el nuevo estado
               setTimeout(autoSave, 60);
             }}
           />{' '}
@@ -275,7 +329,6 @@ function VariantRow({
       </td>
 
       <td style={{ textAlign: 'center' }}>
-        {/* ✅ Delete vía form action: robusto y sin onClick a server action */}
         <form
           action={async () => {
             if (!confirm('¿Eliminar esta variante?')) return;
@@ -306,16 +359,7 @@ function VariantRow({
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#dc2626"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" />
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               <line x1="10" y1="11" x2="10" y2="17" />

@@ -315,6 +315,7 @@ export default async function ProductDetail({
                     variants={p.variants || []}
                     options={p.options || []}
                     basePrice={Number(p.basePrice ?? 0)}
+                    images={p.images || []}
                     salePrice={p.salePrice == null ? null : Number(p.salePrice)}
                     addVariantAction={addVariant.bind(null, p.id)}
                     upsertVariantAction={upsertVariant.bind(null, p.id)}
@@ -491,6 +492,7 @@ export async function upsertVariant(productId: number, variant: any) {
       stock: variant.stock ?? 0,
       active: variant.active ?? true,
       optionValueIds: variant.optionValueIds ?? [],
+      imageId: variant.imageId ?? null,
     }),
     cache: 'no-store',
   });
