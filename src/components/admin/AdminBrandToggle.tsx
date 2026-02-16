@@ -5,7 +5,7 @@ import { useEffect, useCallback } from 'react';
 
 const STORAGE_KEY = 'admin.sidebar.collapsed';
 
-export default function AdminBrandToggle() {
+export default function AdminBrandToggle({ brandName }: { brandName?: string }) {
   const apply = useCallback((next: boolean) => {
     document.body.classList.toggle('sidebar-collapsed', next);
     try {
@@ -62,6 +62,8 @@ export default function AdminBrandToggle() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [toggle]);
 
+  const label = `${brandName || 'Store'} ADMIN`;
+
   return (
     <div
       className="admin-brand"
@@ -74,7 +76,7 @@ export default function AdminBrandToggle() {
       }}
     >
       <Link href="/admin" className="admin-brand__link" aria-label="Ir al dashboard">
-        Hamsa ADMIN
+        {label}
       </Link>
     </div>
   );

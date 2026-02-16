@@ -14,8 +14,8 @@ import { backendFetch } from '@/lib/backend';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Hamsa Admin',
-    template: '%s | Hamsa Admin',
+    default: 'Admin',
+    template: '%s | Admin',
   },
   icons: {
     icon: [{ url: '/favicon.ico' }, { url: '/icon.png', type: 'image/png' }],
@@ -23,9 +23,16 @@ export const metadata: Metadata = {
   },
 };
 
+type StoreSettings = { name?: string | null };
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Valida la sesión: si el token es inválido o falta, backendFetch redirige a /login
   await backendFetch('/auth/me');
+
+  const settings =
+    (await backendFetch<StoreSettings>('/admin/store-settings').catch(() => null)) ?? null;
+
+  const brandName = settings?.name?.trim() || process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || 'Admin';
 
   return (
     <div className="admin-shell">
@@ -42,15 +49,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       <aside className="admin-aside" aria-label="Navegación de administración">
         <div className="admin-aside-top">
-          <AdminBrandToggle />
+          <AdminBrandToggle brandName={brandName} />
 
           {/* Mobile only */}
           <div className="admin-aside-top__actions">
-            <AdminSidebarToggle
-              className="btn btn-outline admin-aside-close"
-              label="Cerrar"
-              close
-            />
+            <AdminSidebarToggle className="btn btn-outline admin-aside-close" label="Cerrar" close />
           </div>
         </div>
 
@@ -64,10 +67,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <section className="admin-main">
         <header className="admin-header" role="banner">
           <div className="admin-header-left">
-            <AdminSidebarToggle
-              className="btn btn-outline admin-sidebar-open"
-              label="Menú"
-            />
+            <AdminSidebarToggle className="btn btn-outline admin-sidebar-open" label="Menú" />
             <AdminBreadcrumbs />
           </div>
         </header>
@@ -77,7 +77,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </main>
 
         <footer className="admin-footer" role="contentinfo">
-          © {new Date().getFullYear()} Hamsa Admin by <InnovaBrand />
+          © {new Date().getFullYear()} {brandName} Admin by <InnovaBrand />
         </footer>
       </section>
     </div>
