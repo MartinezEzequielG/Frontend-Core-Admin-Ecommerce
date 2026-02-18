@@ -1,87 +1,121 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 
-export default function ImagesClient({ productId }: { productId: number }) {
-  const [progress, setProgress] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+type Img = { id: number; url: string; position?: number | null };
 
-  function getCookie(name: string) {
-    return document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(name + '='))
-      ?.split('=')[1];
-  }
+function move<T>(arr: T[], from: number, to: number) {
+  const copy = arr.slice();
+  const [it] = copy.splice(from, 1);
+  copy.splice(to, 0, it);
+  return copy;
+}
 
-  async function uploadToS3(file: File) {
-    const token = getCookie('token');
+export default function ImagesClient({ productId, images }: { productId: number; images: Img[] }) {
+  const initial = useMemo(() => {
+    const sorted = [...(images || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    return sorted;
+  }, [images]);
 
-    const presignRes = await fetch('/admin/uploads/presign', {
-      method: 'POST',
+  const [items, setItems] = useState<Img[]>(initial);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => setItems(initial), [initial]);
+
+  async function persist(next: Img[]) {
+    // usa el proxy (Solución A). Si elegiste B, apuntá a `${API}/...`
+    const order = next.map((im) => im.id);
+
+    const res = await fetch(`/api/admin/products/${productId}/images/reorder`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filename: file.name,
-        contentType: file.type,
-        folder: 'products',
-      }),
+      body: JSON.stringify({ order }),
     });
 
-    if (!presignRes.ok) {
-      const txt = await presignRes.text().catch(() => '');
-      throw new Error(`Error al pedir presign: ${presignRes.status} ${txt}`);
+    if (!res.ok) {
+      const msg = await res.text().catch(() => 'Error');
+      throw new Error(msg);
     }
+  }
 
-    const { uploadUrl, publicUrl } = await presignRes.json();
+  function onDragStart(idx: number) {
+    setDragIdx(idx);
+  }
 
-    // PUT directo a S3
-    const xhr = new XMLHttpRequest();
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-    };
+  function onDragOver(e: React.DragEvent, overIdx: number) {
+    e.preventDefault();
+    if (dragIdx == null) return;
+    if (overIdx === dragIdx) return;
 
-    return new Promise<string>((resolve, reject) => {
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 4) {
-          if (xhr.status >= 200 && xhr.status < 300) resolve(publicUrl);
-          else reject(new Error(`Error al subir a S3 (status ${xhr.status})`));
-        }
-      };
-      xhr.open('PUT', uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type);
-      xhr.send(file);
+    setItems((prev) => {
+      const next = move(prev, dragIdx, overIdx);
+      // importantísimo: actualizar dragIdx para que el reorder sea “suave”
+      setDragIdx(overIdx);
+      return next;
     });
   }
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setProgress(0);
-    try {
-      // Nuevo flujo: subir a S3 y guardar la URL en el producto
-      const publicUrl = await uploadToS3(f);
-      const urlLink = `/api/admin/products/${productId}/images`;
-      const linkRes = await fetch(urlLink, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: publicUrl, position: 0 }),
-      });
-      if (!linkRes.ok) {
-        const err = await linkRes.json().catch(() => ({}));
-        throw new Error(err?.message || `HTTP ${linkRes.status}`);
+  function onDragEnd() {
+    setDragIdx(null);
+
+    const snapshot = items;
+    startTransition(async () => {
+      try {
+        await persist(snapshot);
+      } catch (e) {
+        // fallback simple: recargar orden original si falla
+        setItems(initial);
+        console.error(e);
+        alert('No se pudo reordenar. Intentá nuevamente.');
       }
-      location.reload();
-    } catch (err) {
-      alert((err as Error).message);
-    } finally {
-      if (inputRef.current) inputRef.current.value = '';
-      setProgress(0);
-    }
+    });
   }
 
   return (
-    <div style={{ display: 'grid', gap: 8 }}>
-      <input ref={inputRef} type="file" accept="image/*" onChange={onFile} />
-      {progress > 0 && <progress value={progress} max={100} />}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 10 }}>
+      {items.map((img, idx) => (
+        <div
+          key={img.id}
+          draggable
+          onDragStart={() => onDragStart(idx)}
+          onDragOver={(e) => onDragOver(e, idx)}
+          onDragEnd={onDragEnd}
+          style={{
+            border:
+              dragIdx === idx
+                ? '2px solid #0ea5e9'
+                : '1px solid rgba(148,163,184,0.35)',
+            borderRadius: 10,
+            padding: 8,
+            background: 'white',
+            cursor: 'grab',
+            opacity: pending ? 0.7 : 1,
+            position: 'relative',
+          }}
+        >
+          <img
+            src={img.url}
+            alt=""
+            style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 8, marginBottom: 6 }}
+          />
+
+          <div style={{ fontSize: 11, textAlign: 'center', opacity: 0.7 }}>
+            #{idx + 1}
+          </div>
+
+          {pending && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.6)',
+              }}
+            />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

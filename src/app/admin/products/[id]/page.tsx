@@ -263,9 +263,9 @@ export default async function ProductDetail({
                 <h2 className="section-title">🖼️ Imágenes del producto</h2>
                 <p className="section-help">Arrastrá para reordenar • Primera imagen = principal</p>
               </div>
-              <ImagesClient productId={p.id} />
+              {/* Solo este componente */}
+              <ImagesClient productId={p.id} images={p.images || []} />
             </div>
-            <ImagesGrid product={p} />
           </section>
 
           {/* 3) VARIANTES: acordeón + flujo guiado */}
@@ -686,115 +686,68 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
 
 function ImagesGrid({ product }: { product: any }) {
   const images = product.images || [];
-  const mainUrl = images.length ? adminImageUrl(images[0]?.url) : '';
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  function onDragStart(idx: number) {
+    setDragIdx(idx);
+  }
+  function onDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    // lógica de reordenar si querés
+  }
+  function onDragEnd() {
+    setDragIdx(null);
+    // lógica de guardar si querés
+  }
 
   return (
-    <div className="form-grid" style={{ gap: 12 }}>
-      {/* Preview grande */}
-      {mainUrl ? (
-        <div className="card" style={{ padding: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>Imagen principal</div>
-          <div
+    <div
+      className="cards"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+        gap: 10,
+      }}
+    >
+      {images.map((img, idx) => (
+        <div
+          key={img.id}
+          draggable
+          onDragStart={() => onDragStart(idx)}
+          onDragOver={(e) => onDragOver(e, idx)}
+          onDragEnd={onDragEnd}
+          onDrop={onDragEnd}
+          style={{
+            border:
+              dragIdx === idx
+                ? '2px solid #0ea5e9'
+                : dragIdx !== null && dragIdx !== idx
+                ? '2px dashed #0ea5e9'
+                : '1px solid #e5e7eb',
+            borderRadius: 10,
+            padding: 8,
+            background: '#fff',
+            cursor: 'grab',
+            opacity: dragIdx === idx ? 0.7 : 1,
+            transition: 'border 0.15s',
+          }}
+        >
+          <img
+            src={img.url}
+            alt=""
             style={{
               width: '100%',
-              height: 260,
-              borderRadius: 12,
-              background: '#f8fafc',
-              border: '1px solid rgba(15,23,42,0.08)',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              height: 96,
+              objectFit: 'cover',
+              borderRadius: 8,
+              marginBottom: 6,
             }}
-          >
-            <img
-              src={mainUrl}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
-          </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--admin-muted)' }}>
-            La primera imagen es la que se ve en la tienda.
+          />
+          <div style={{ fontSize: 11, textAlign: 'center', color: '#64748b' }}>
+            Posición: {idx + 1}
           </div>
         </div>
-      ) : null}
-
-      {/* Miniaturas */}
-      <div
-        className="cards"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-          gap: 10,
-        }}
-      >
-        {images.map((img: any, idx: number) => {
-          const url = adminImageUrl(img.url);
-          const position = typeof img.position === 'number' && img.position > 0 ? img.position : idx + 1;
-
-          return (
-            <div key={img.id} className="card" style={{ padding: 8, position: 'relative' }}>
-              <span
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  left: 8,
-                  background: 'rgba(241,245,249,0.9)',
-                  color: '#475569',
-                  fontSize: 11,
-                  borderRadius: 999,
-                  padding: '2px 8px',
-                  fontWeight: 700,
-                  boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
-                  zIndex: 2,
-                  pointerEvents: 'none',
-                }}
-              >
-                #{position}
-              </span>
-
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  zIndex: 2,
-                  width: 26,
-                  height: 26,
-                  borderRadius: '999px',
-                  background: 'rgba(248,250,252,0.95)',
-                  border: '1px solid rgba(148,163,184,0.45)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 1px 4px rgba(15,23,42,0.08)',
-                }}
-              >
-                <RemoveImageButton productId={product.id} imageId={img.id} icon />
-              </div>
-
-              <img
-                src={url}
-                alt=""
-                style={{
-                  width: '100%',
-                  height: 96,
-                  objectFit: 'cover',
-                  borderRadius: 10,
-                  display: 'block',
-                  marginBottom: 8,
-                }}
-              />
-
-              <div style={{ fontSize: 11, opacity: 0.7, wordBreak: 'break-all', textAlign: 'center' }}>
-                <a href={url} target="_blank" rel="noreferrer">
-                  Abrir imagen
-                </a>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      ))}
     </div>
   );
 }

@@ -48,6 +48,7 @@ export default function AdminBrandToggle({ brandName }: { brandName?: string }) 
   // Atajo: Ctrl/Cmd + B
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.key) return; // ✅ Previene el error
       const key = e.key.toLowerCase();
       const isMac = navigator.platform.toLowerCase().includes('mac');
       const mod = isMac ? e.metaKey : e.ctrlKey;
