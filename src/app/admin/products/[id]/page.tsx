@@ -263,7 +263,6 @@ export default async function ProductDetail({
                 <h2 className="section-title">🖼️ Imágenes del producto</h2>
                 <p className="section-help">Arrastrá para reordenar • Primera imagen = principal</p>
               </div>
-              {/* Solo este componente */}
               <ImagesClient productId={p.id} images={p.images || []} />
             </div>
           </section>
@@ -463,14 +462,12 @@ async function patchProduct(id: number, body: any) {
 
   if (!res.ok) {
     const msg = await res.text().catch(() => 'Error');
-    // Si el mensaje indica éxito, no muestres error
     if (
       msg.includes('sin cambios') ||
       msg.includes('actualizado') ||
       msg.includes('guardado') ||
       msg.includes('success')
     ) return;
-    // Si el cambio se guardó, no redirijas con error
     if (msg.includes('cambios aplicados') || msg.includes('updated')) return;
     throw new Error(msg);
   }
@@ -585,7 +582,7 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
         isHot,
         freeShipping,
       });
-    } catch (e) {
+    } catch {
       redirect(`/admin/products/${productId}?error=1#basics`);
     }
 
@@ -684,120 +681,15 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
   );
 }
 
-function ImagesGrid({ product }: { product: any }) {
-  const images = product.images || [];
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
+/**
+ * ✅ IMPORTANTE:
+ * - Elimino ImagesGrid porque:
+ *   1) no se usa en el render
+ *   2) usaba useState en un Server Component (page.tsx) y rompe el build
+ * Si querés un grid "extra", crealo como componente separado con 'use client'.
+ */
 
-  function onDragStart(idx: number) {
-    setDragIdx(idx);
-  }
-  function onDragOver(e: React.DragEvent, idx: number) {
-    e.preventDefault();
-    // lógica de reordenar si querés
-  }
-  function onDragEnd() {
-    setDragIdx(null);
-    // lógica de guardar si querés
-  }
-
-  return (
-    <div
-      className="cards"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-        gap: 10,
-      }}
-    >
-      {images.map((img, idx) => (
-        <div
-          key={img.id}
-          draggable
-          onDragStart={() => onDragStart(idx)}
-          onDragOver={(e) => onDragOver(e, idx)}
-          onDragEnd={onDragEnd}
-          onDrop={onDragEnd}
-          style={{
-            border:
-              dragIdx === idx
-                ? '2px solid #0ea5e9'
-                : dragIdx !== null && dragIdx !== idx
-                ? '2px dashed #0ea5e9'
-                : '1px solid #e5e7eb',
-            borderRadius: 10,
-            padding: 8,
-            background: '#fff',
-            cursor: 'grab',
-            opacity: dragIdx === idx ? 0.7 : 1,
-            transition: 'border 0.15s',
-          }}
-        >
-          <img
-            src={img.url}
-            alt=""
-            style={{
-              width: '100%',
-              height: 96,
-              objectFit: 'cover',
-              borderRadius: 8,
-              marginBottom: 6,
-            }}
-          />
-          <div style={{ fontSize: 11, textAlign: 'center', color: '#64748b' }}>
-            Posición: {idx + 1}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function RemoveImageButton({ productId, imageId, icon }: { productId: number; imageId: number; icon?: boolean }) {
-  const remove = async () => {
-    'use server';
-    const token = (await cookies()).get('token')?.value;
-    const res = await fetch(`${API}/admin/products/${productId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ images: { delete: { id: imageId } } }),
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      redirect(`/admin/products/${productId}?error=1#images`);
-    }
-
-    revalidatePath(`/admin/products/${productId}`);
-  };
-
-  return (
-    <form action={remove} style={{ display: 'inline' }}>
-      <button
-        type="submit"
-        aria-label="Eliminar imagen"
-        style={{
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          margin: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-        }}
-      >
-        {icon ? (
-          <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
-            <circle cx="10" cy="10" r="9" fill="none" stroke="#e11d48" strokeWidth="1.2" />
-            <path d="M7 7l6 6M13 7l-6 6" stroke="#e11d48" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-        ) : (
-          'Eliminar'
-        )}
-      </button>
-    </form>
-  );
-}
+// ---- Options Editor ----
 
 function OptionsEditor({ product }: { product: any }) {
   const addOption = async (formData: FormData) => {
