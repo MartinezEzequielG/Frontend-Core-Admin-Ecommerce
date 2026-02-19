@@ -1,6 +1,7 @@
+// src/app/admin/products/[id]/VariantsClient.tsx
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import React, { useMemo, useState, useTransition } from 'react';
 
 function money(v: any) {
   const n = Number(v ?? 0);
@@ -23,18 +24,21 @@ type UpsertPayload = {
   stock?: number;
   active?: boolean;
   optionValueIds?: number[];
-  imageId?: number | null; // ✅ NUEVO
+  imageId?: number | null;
+  arUrl?: string | null; // ✅ NUEVO
 };
 
 type AdminProductImage = { id: number; url: string; position?: number | null };
 
-const VARIANT_COL_WIDTHS = [80, 520, 220, 190, 180, 120, 110, 60] as const;
+// ⚠️ Tenías 8 widths pero 9 columnas + acción.
+// Dejo 9 columnas (sin la acción), y la acción queda sin col fijo (o podés agregar 10).
+const VARIANT_COL_WIDTHS = [80, 520, 220, 190, 180, 120, 110, 360, 60] as const;
 
 export default function VariantsClient(props: {
   productId: number;
   variants: any[];
   options: any[];
-  images: AdminProductImage[]; // ✅ NUEVO
+  images: AdminProductImage[];
   addVariantAction: () => Promise<any>;
   upsertVariantAction: (variant: { id: number } & UpsertPayload) => Promise<any>;
   deleteVariantAction: (id: number) => Promise<any>;
@@ -86,6 +90,7 @@ export default function VariantsClient(props: {
                 <th>Precio</th>
                 <th>Stock</th>
                 <th>Activo</th>
+                <th>AR URL</th>
                 <th></th>
               </tr>
             </thead>
@@ -132,11 +137,23 @@ function VariantRow({
 
   const [sku, setSku] = useState<string>(v.sku ?? '');
   const [price, setPrice] = useState<string>(v.price != null ? String(v.price) : '');
-  const [stock, setStock] = useState<number>(v.stock ?? 0);
+  const [stock, setStock] = useState<number>(Number(v.stock ?? 0));
   const [active, setActive] = useState<boolean>(v.active ?? true);
 
-  // ✅ NUEVO: imagen por variante
+  // ✅ imagen por variante
   const [imageId, setImageId] = useState<number | null>(v.imageId ?? null);
+
+  // ✅ AR por variante
+  const [arUrl, setArUrl] = useState<string>(v.arUrl ?? '');
+  const [arSaveTimer, setArSaveTimer] = useState<any>(null);
+
+  function scheduleAutoSave(next: string) {
+    if (arSaveTimer) clearTimeout(arSaveTimer);
+    const t = setTimeout(() => {
+      autoSave();
+    }, 600);
+    setArSaveTimer(t);
+  }
 
   const initialSelected: Record<number, number | ''> = useMemo(() => {
     const out: Record<number, number | ''> = {};
@@ -162,7 +179,7 @@ function VariantRow({
       .join(' / ') || 'Sin combinación';
 
   const fallback = salePrice ?? basePrice;
-  const isComboValid = options.every((opt) => selectedValues[opt.id]);
+  const isComboValid = (options || []).every((opt) => selectedValues[opt.id]);
 
   const selectedImage = imageId ? images.find((im) => im.id === imageId) : null;
   const previewUrl = normalizeImg(selectedImage?.url ?? v.imageUrl ?? null);
@@ -172,12 +189,13 @@ function VariantRow({
     if (!isComboValid) return;
 
     const changed =
-      stock !== (v.stock ?? 0) ||
-      (v.sku ?? '') !== sku ||
-      (v.price != null ? String(v.price) : '') !== price.trim() ||
-      (v.active ?? true) !== active ||
+      Number(stock) !== Number(v.stock ?? 0) ||
+      String(v.sku ?? '') !== String(sku) ||
+      String(v.price != null ? String(v.price) : '') !== String(price.trim()) ||
+      Boolean(v.active ?? true) !== Boolean(active) ||
       JSON.stringify(initialSelected) !== JSON.stringify(selectedValues) ||
-      (v.imageId ?? null) !== imageId;
+      (v.imageId ?? null) !== imageId ||
+      String(v.arUrl ?? '') !== String(arUrl ?? ''); // ✅ IMPORTANTÍSIMO (antes faltaba)
 
     if (!changed) return;
 
@@ -189,6 +207,7 @@ function VariantRow({
         active,
         optionValueIds,
         imageId: imageId ?? null,
+        arUrl: arUrl?.trim() || null, // ✅
       }),
     );
   };
@@ -197,13 +216,12 @@ function VariantRow({
     <tr style={{ opacity: pending ? 0.75 : 1 }}>
       <td>#{v.id}</td>
 
+      {/* COMBINACIÓN */}
       <td>
         <div className="variant-combo">
           <div className="cell-stack">
             <span className="cell-title">{comboLabel}</span>
-            <span className="cell-meta">
-              Asigná 1 valor por atributo {isComboValid ? '' : '· Falta completar combinación'}
-            </span>
+            <span className="cell-meta">Asigná 1 valor por atributo {isComboValid ? '' : '· Falta completar'}</span>
           </div>
 
           <div className="variant-combo__selects">
@@ -234,10 +252,11 @@ function VariantRow({
         </div>
       </td>
 
-      {/* ✅ IMAGEN */}
+      {/* IMAGEN */}
       <td>
         <div style={{ display: 'grid', gap: 8 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewUrl}
               alt=""
@@ -275,10 +294,12 @@ function VariantRow({
         </div>
       </td>
 
+      {/* SKU */}
       <td>
         <input className="input" value={sku} onChange={(e) => setSku(e.target.value)} onBlur={autoSave} placeholder="SKU" />
       </td>
 
+      {/* PRECIO */}
       <td>
         <div className="variants-num">
           <input
@@ -297,6 +318,7 @@ function VariantRow({
         </div>
       </td>
 
+      {/* STOCK */}
       <td>
         <div className="variants-num">
           <input
@@ -314,6 +336,7 @@ function VariantRow({
         </div>
       </td>
 
+      {/* ACTIVO */}
       <td>
         <label className="row" style={{ alignItems: 'center', cursor: 'pointer' }}>
           <input
@@ -321,6 +344,7 @@ function VariantRow({
             checked={active}
             onChange={(e) => {
               setActive(e.target.checked);
+              // guardado “suave”
               setTimeout(autoSave, 60);
             }}
           />{' '}
@@ -328,6 +352,28 @@ function VariantRow({
         </label>
       </td>
 
+      {/* AR URL */}
+      <td>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <input
+            className="input"
+            type="url"
+            value={arUrl}
+            onChange={(e) => {
+              const next = e.target.value;
+              setArUrl(next);
+              scheduleAutoSave(next);
+            }}
+            onBlur={autoSave}
+            placeholder="https://..."
+          />
+          <div style={{ fontSize: 11, color: 'var(--admin-muted)', opacity: 0.85 }}>
+            Link del probador AR para esta variante.
+          </div>
+        </div>
+      </td>
+
+      {/* DELETE */}
       <td style={{ textAlign: 'center' }}>
         <form
           action={async () => {
@@ -359,7 +405,16 @@ function VariantRow({
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#dc2626"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polyline points="3 6 5 6 21 6" />
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               <line x1="10" y1="11" x2="10" y2="17" />

@@ -1,3 +1,4 @@
+// src/app/admin/products/[id]/page.tsx
 import { API, backendFetch } from '@/lib/backend';
 import ImagesClient from './ImagesClient';
 import VariantsClient from './VariantsClient';
@@ -22,22 +23,18 @@ const RAW_BASE =
 
 const ASSETS_BASE = normalizeBase(RAW_BASE);
 const ASSETS_PUBLIC_BASE = process.env.NEXT_PUBLIC_ASSETS_BASE?.replace(/\/+$/, '') || '';
-
 const STORE_URL = process.env.NEXT_PUBLIC_STORE_URL?.replace(/\/+$/, '') || '';
 
 function adminImageUrl(raw?: string | null): string {
   const r = (raw || '').trim();
   if (!r) return '/placeholder.svg';
 
-  // 1) URL absoluta
   if (r.startsWith('http://') || r.startsWith('https://')) return r;
 
-  // 2) key de S3 (ej: "products/xxx.jpg")
   if (ASSETS_PUBLIC_BASE && !r.startsWith('/') && !r.startsWith('uploads/')) {
     return `${ASSETS_PUBLIC_BASE}/${r}`;
   }
 
-  // 3) legacy uploads
   if (r.startsWith('/uploads/')) return `${ASSETS_BASE}${r}`;
   if (r.startsWith('uploads/')) return `${ASSETS_BASE}/${r}`;
 
@@ -94,8 +91,11 @@ type AdminProductVariant = {
   sku?: string | null;
   price?: number | null;
   active?: boolean;
-  stock?: any; // mapeado desde onHand en backend
+  stock?: any;
   options?: any[];
+  imageId?: number | null;
+
+  arUrl?: string | null; // ✅ NUEVO
 };
 
 type AdminProductDetail = {
@@ -119,7 +119,8 @@ type AdminProductDetail = {
   isNew?: boolean;
   isHot?: boolean;
   freeShipping?: boolean;
-  arUrl?: string;
+
+  arUrl?: string | null; // (si todavía lo querés a nivel producto, lo dejamos)
 };
 
 export default async function ProductDetail({
@@ -161,7 +162,6 @@ export default async function ProductDetail({
         variant={saved ? 'success' : error ? 'error' : 'default'}
       />
 
-      {/* Header sticky premium */}
       <header
         className="product-edit-header"
         style={{
@@ -174,14 +174,12 @@ export default async function ProductDetail({
         }}
       >
         <div style={{ display: 'grid', gap: 8 }}>
-          {/* Breadcrumb */}
           <div style={{ fontSize: 12, color: 'var(--admin-muted)' }}>
             <Link href="/admin/products">Productos</Link>
             <span style={{ opacity: 0.6 }}> / </span>
             <span>{p.name}</span>
           </div>
 
-          {/* Título + estado */}
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
             <div>
               <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -225,7 +223,6 @@ export default async function ProductDetail({
               <ProductEditNav />
             </div>
 
-            {/* Acciones */}
             <div className="product-edit-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button type="submit" form="product-basics-form" className="btn btn-primary">
                 Guardar datos básicos
@@ -244,9 +241,7 @@ export default async function ProductDetail({
       </header>
 
       <div className="product-edit-grid">
-        {/* Columna principal */}
         <div className="product-edit-main">
-          {/* 1) BÁSICOS */}
           <section id="basics" className="card form-grid">
             <div className="section-header">
               <div>
@@ -257,7 +252,6 @@ export default async function ProductDetail({
             <EditBasics product={p} formId="product-basics-form" />
           </section>
 
-          {/* 2) IMÁGENES: preview grande + grilla */}
           <section id="images" className="card form-grid">
             <div className="section-header">
               <div>
@@ -268,7 +262,6 @@ export default async function ProductDetail({
             </div>
           </section>
 
-          {/* 3) VARIANTES: acordeón + flujo guiado */}
           <details id="variants" className="card" open={hasOptions}>
             <summary className="section-header" style={{ cursor: 'pointer', padding: 16, userSelect: 'none' }}>
               <div>
@@ -326,7 +319,6 @@ export default async function ProductDetail({
             </div>
           </details>
 
-          {/* 4) AUDITORÍA */}
           <details id="audit" className="card">
             <summary className="section-header" style={{ cursor: 'pointer', padding: 16, userSelect: 'none' }}>
               <h2 className="section-title">📊 Historial de cambios</h2>
@@ -350,12 +342,10 @@ export default async function ProductDetail({
           </details>
         </div>
 
-        {/* Columna lateral */}
         <aside className="product-edit-side">
           <section className="card form-grid" style={{ position: 'sticky', top: 80 }}>
             <h2 className="section-title">⚙️ Configuración rápida</h2>
 
-            {/* Estado + destacado */}
             <form action={updateFlags.bind(null, p.id)} className="form-grid" style={{ gap: 12 }}>
               <label
                 className="toggle-card"
@@ -402,7 +392,6 @@ export default async function ProductDetail({
               </button>
             </form>
 
-            {/* Categoría */}
             <form
               action={setCategory.bind(null, p.id)}
               className="form-grid"
@@ -420,7 +409,6 @@ export default async function ProductDetail({
               </button>
             </form>
 
-            {/* Quick stats */}
             <div style={{ paddingTop: 12, borderTop: '1px solid var(--admin-border)', fontSize: 12 }}>
               <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ color: 'var(--admin-muted)' }}>Stock total:</span>
@@ -439,7 +427,6 @@ export default async function ProductDetail({
         </aside>
       </div>
 
-      {/* Responsive tablet */}
       <style>{`
         @media (max-width: 1024px) {
           .product-edit-grid { grid-template-columns: 1fr !important; }
@@ -475,7 +462,7 @@ async function patchProduct(id: number, body: any) {
   revalidatePath(`/admin/products/${id}`);
 }
 
-// Variantes (server actions usadas por VariantsClient)
+// ✅ Variantes (server actions usadas por VariantsClient)
 export async function upsertVariant(productId: number, variant: any) {
   'use server';
   const token = (await cookies()).get('token')?.value;
@@ -491,6 +478,7 @@ export async function upsertVariant(productId: number, variant: any) {
       active: variant.active ?? true,
       optionValueIds: variant.optionValueIds ?? [],
       imageId: variant.imageId ?? null,
+      arUrl: variant.arUrl ?? null, // ✅
     }),
     cache: 'no-store',
   });
@@ -546,7 +534,7 @@ async function generateVariants(productId: number) {
   revalidatePath(`/admin/products/${productId}`);
 }
 
-// EditBasics: solo formulario, sin botón visible, con id configurable
+// EditBasics
 function EditBasics({ product, formId = 'product-basics-form' }: { product: any; formId?: string }) {
   const save = async (formData: FormData) => {
     'use server';
@@ -570,9 +558,11 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
       const isNew = formData.get('isNew') === 'on';
       const isHot = formData.get('isHot') === 'on';
       const freeShipping = formData.get('freeShipping') === 'on';
-      const arUrl = formData.get('arUrl') || '';
 
-      await patchProduct(productId, {
+      const arUrlRaw = formData.get('arUrl');
+      const arUrl = typeof arUrlRaw === 'string' ? arUrlRaw.trim() : '';
+
+      const body: any = {
         name,
         basePrice,
         salePrice,
@@ -583,8 +573,14 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
         isNew,
         isHot,
         freeShipping,
-        arUrl,
-      });
+      };
+
+      // Solo incluir arUrl si el input existe en el form
+      if (arUrlRaw !== null) {
+        body.arUrl = arUrl || null;
+      }
+
+      await patchProduct(productId, body);
     } catch {
       redirect(`/admin/products/${productId}?error=1#basics`);
     }
@@ -608,51 +604,22 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
         <div>
           <label className="text-sm">Precio base</label>
-          <input
-            name="basePrice"
-            type="number"
-            step="0.01"
-            defaultValue={product.basePrice}
-            required
-            className="input"
-          />
+          <input name="basePrice" type="number" step="0.01" defaultValue={product.basePrice} required className="input" />
         </div>
         <div>
           <label className="text-sm">Precio oferta</label>
-          <input
-            name="salePrice"
-            type="number"
-            step="0.01"
-            defaultValue={product.salePrice ?? ''}
-            className="input"
-          />
+          <input name="salePrice" type="number" step="0.01" defaultValue={product.salePrice ?? ''} className="input" />
         </div>
       </div>
 
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
         <div>
           <label className="text-sm">% OFF Transferencia</label>
-          <input
-            name="discountTransfer"
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            defaultValue={product.discountTransfer ?? ''}
-            className="input"
-          />
+          <input name="discountTransfer" type="number" step="0.01" min="0" max="100" defaultValue={product.discountTransfer ?? ''} className="input" />
         </div>
         <div>
           <label className="text-sm">% OFF MercadoPago</label>
-          <input
-            name="discountMp"
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            defaultValue={product.discountMp ?? ''}
-            className="input"
-          />
+          <input name="discountMp" type="number" step="0.01" min="0" max="100" defaultValue={product.discountMp ?? ''} className="input" />
         </div>
       </div>
 
@@ -670,37 +637,19 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
 
       <div>
         <label className="text-sm">Descripción</label>
-        <textarea
-          name="description"
-          defaultValue={product.description ?? ''}
-          className="input"
-          rows={4}
-          style={{ resize: 'vertical' }}
-        />
+        <textarea name="description" defaultValue={product.description ?? ''} className="input" rows={4} style={{ resize: 'vertical' }} />
       </div>
 
+      {/* (opcional) AR a nivel producto */}
       <div>
-        <label className="text-sm">Link AR (Prueba virtual)</label>
-        <input
-          name="arUrl"
-          defaultValue={product.arUrl ?? ''}
-          className="input"
-          placeholder="https://..."
-        />
+        <label className="text-sm">Link AR (Prueba virtual - producto)</label>
+        <input name="arUrl" defaultValue={product.arUrl ?? ''} className="input" placeholder="https://..." />
       </div>
 
       <PriceTool formId={formId} defaultCoef={0.8} />
     </form>
   );
 }
-
-/**
- * ✅ IMPORTANTE:
- * - Elimino ImagesGrid porque:
- *   1) no se usa en el render
- *   2) usaba useState en un Server Component (page.tsx) y rompe el build
- * Si querés un grid "extra", crealo como componente separado con 'use client'.
- */
 
 // ---- Options Editor ----
 
