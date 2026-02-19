@@ -119,6 +119,7 @@ type AdminProductDetail = {
   isNew?: boolean;
   isHot?: boolean;
   freeShipping?: boolean;
+  arUrl?: string;
 };
 
 export default async function ProductDetail({
@@ -569,6 +570,7 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
       const isNew = formData.get('isNew') === 'on';
       const isHot = formData.get('isHot') === 'on';
       const freeShipping = formData.get('freeShipping') === 'on';
+      const arUrl = formData.get('arUrl') || '';
 
       await patchProduct(productId, {
         name,
@@ -581,6 +583,7 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
         isNew,
         isHot,
         freeShipping,
+        arUrl,
       });
     } catch {
       redirect(`/admin/products/${productId}?error=1#basics`);
@@ -673,6 +676,16 @@ function EditBasics({ product, formId = 'product-basics-form' }: { product: any;
           className="input"
           rows={4}
           style={{ resize: 'vertical' }}
+        />
+      </div>
+
+      <div>
+        <label className="text-sm">Link AR (Prueba virtual)</label>
+        <input
+          name="arUrl"
+          defaultValue={product.arUrl ?? ''}
+          className="input"
+          placeholder="https://..."
         />
       </div>
 
