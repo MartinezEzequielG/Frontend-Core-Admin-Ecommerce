@@ -18,21 +18,38 @@ export async function backendFetch<T = unknown>(path: string, init?: RequestInit
   const token = cookieStore.get('token')?.value;
 
   const headers = new Headers(init?.headers);
-  headers.set('Content-Type', 'application/json');
+
+  headers.set('Accept', 'application/json');
+  if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
   const res = await fetch(`${API}${path}`, { ...init, headers, cache: 'no-store' });
 
   if (res.status === 401) redirect('/login');
-  if (res.status === 403) return null; // evita throw durante render
+  if (res.status === 403) return null;
+
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
 
   if (!res.ok) {
-    let message = `Request failed ${res.status}`;
-    try {
-      message = (await res.json()).message ?? message;
-    } catch {}
-    throw new Error(message);
+    if (contentType.includes('application/json') && text.trim().length > 0) {
+      try {
+        const data = JSON.parse(text) as any;
+        const msg = data?.message || `Request failed ${res.status}`;
+        throw new Error(msg);
+      } catch {
+        throw new Error(`Request failed ${res.status}: ${text.slice(0, 500)}`);
+      }
+    }
+    throw new Error(`Request failed ${res.status}: ${text.slice(0, 500)}`);
   }
 
-  return (await res.json()) as T;
+  if (res.status === 204 || text.trim().length === 0) return null;
+
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Expected JSON but got "${contentType}". Body: ${text.slice(0, 200)}`);
+  }
+
+  return JSON.parse(text) as T;
 }
