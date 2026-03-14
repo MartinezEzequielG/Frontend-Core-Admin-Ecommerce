@@ -69,49 +69,26 @@ export default function VariantsClient(props: {
           No hay variantes aún. Creá una variante y asignale la combinación.
         </p>
       ) : (
-        <div className="table-wrap">
-          <table className="table variants-table">
-            <colgroup>
-              {VARIANT_COL_WIDTHS.map((w, i) => (
-                <col key={i} style={{ width: w }} />
-              ))}
-            </colgroup>
-
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Combinación</th>
-                <th>Imagen</th>
-                <th>SKU</th>
-                <th>Precio</th>
-                <th>Stock</th>
-                <th>Activo</th>
-                <th></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {props.variants.map((v: any) => (
-                <VariantRow
-                  key={v.id}
-                  v={v}
-                  options={options}
-                  images={images}
-                  basePrice={basePrice}
-                  salePrice={salePrice}
-                  onSave={(data) => props.upsertVariantAction({ id: v.id, ...data })}
-                  onDelete={() => props.deleteVariantAction(v.id)}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div className="variants-list">
+          {props.variants.map((v: any) => (
+            <VariantCard
+              key={v.id}
+              v={v}
+              options={options}
+              images={images}
+              basePrice={basePrice}
+              salePrice={salePrice}
+              onSave={(data) => props.upsertVariantAction({ id: v.id, ...data })}
+              onDelete={() => props.deleteVariantAction(v.id)}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function VariantRow({
+function VariantCard({
   v,
   options,
   images,
@@ -194,18 +171,27 @@ function VariantRow({
   };
 
   return (
-    <tr style={{ opacity: pending ? 0.75 : 1 }}>
-      <td>#{v.id}</td>
+    <article className="variant-card" style={{ opacity: pending ? 0.75 : 1 }}>
+      <header className="variant-card__header">
+        <div className="variant-card__titleblock">
+          <div className="variant-card__eyebrow">Variante #{v.id}</div>
+          <h3 className="variant-card__title">{comboLabel}</h3>
+          <p className="variant-card__meta">
+            {isComboValid
+              ? 'Combinación lista. Los cambios se guardan al salir de cada campo.'
+              : 'Falta completar la combinación para guardar.'}
+          </p>
+        </div>
 
-      <td>
+        <div className="variant-card__status">
+          <span className={`variant-status ${active ? 'is-active' : 'is-inactive'}`}>
+            {active ? 'Activa' : 'Oculta'}
+          </span>
+        </div>
+      </header>
+
+      <section className="variant-card__section">
         <div className="variant-combo">
-          <div className="cell-stack">
-            <span className="cell-title">{comboLabel}</span>
-            <span className="cell-meta">
-              Asigná 1 valor por atributo {isComboValid ? '' : '· Falta completar combinación'}
-            </span>
-          </div>
-
           <div className="variant-combo__selects">
             {(options || []).map((opt: any) => (
               <label key={opt.id} className="variant-select">
@@ -221,7 +207,7 @@ function VariantRow({
                   }}
                   onBlur={autoSave}
                 >
-                  <option value="">—</option>
+                  <option value="">Seleccionar</option>
                   {(opt.values || []).map((val: any) => (
                     <option key={val.id} value={val.id}>
                       {val.value}
@@ -232,142 +218,128 @@ function VariantRow({
             ))}
           </div>
         </div>
-      </td>
+      </section>
 
-      {/* ✅ IMAGEN */}
-      <td>
-        <div style={{ display: 'grid', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <img
-              src={previewUrl}
-              alt=""
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                objectFit: 'cover',
-                border: '1px solid rgba(15,23,42,0.12)',
-                background: '#fff',
-              }}
-            />
-            <div style={{ fontSize: 11, color: 'var(--admin-muted)', lineHeight: 1.2 }}>
-              {imageId ? `ID imagen: #${imageId}` : 'Sin imagen'}
-              <div style={{ opacity: 0.7 }}>Se verá en la tienda para esta variante</div>
+      <section className="variant-card__body">
+        <div className="variant-card__left">
+          <div className="variant-media-card">
+            <div className="variant-media-card__preview">
+              <img
+                src={previewUrl}
+                alt=""
+                className="variant-media-card__img"
+              />
+              <div className="variant-media-card__info">
+                <strong>{imageId ? `Imagen #${imageId}` : 'Sin imagen asignada'}</strong>
+                <span>Se mostrará para esta variante en la tienda.</span>
+              </div>
             </div>
+
+            <label className="variant-field">
+              <span className="variant-field__label">Imagen</span>
+              <select
+                className="select"
+                value={imageId ?? ''}
+                onChange={(e) => setImageId(e.target.value ? Number(e.target.value) : null)}
+                onBlur={autoSave}
+              >
+                <option value="">Sin imagen</option>
+                {(images || [])
+                  .slice()
+                  .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
+                  .map((im) => (
+                    <option key={im.id} value={im.id}>
+                      #{im.position ?? 0} · id {im.id}
+                    </option>
+                  ))}
+              </select>
+            </label>
           </div>
 
-          <select
-            className="select"
-            value={imageId ?? ''}
-            onChange={(e) => setImageId(e.target.value ? Number(e.target.value) : null)}
-            onBlur={autoSave}
-          >
-            <option value="">Sin imagen</option>
-            {(images || [])
-              .slice()
-              .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
-              .map((im) => (
-                <option key={im.id} value={im.id}>
-                  #{im.position ?? 0} · (id {im.id})
-                </option>
-              ))}
-          </select>
+          <div className="variant-commercial-grid">
+            <label className="variant-field">
+              <span className="variant-field__label">SKU</span>
+              <input
+                className="input"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                onBlur={autoSave}
+                placeholder="SKU"
+              />
+            </label>
+
+            <label className="variant-field">
+              <span className="variant-field__label">Precio</span>
+              <input
+                className="input input--sm input--num"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                onBlur={autoSave}
+                placeholder="—"
+                aria-label="Precio de variante (opcional)"
+              />
+              <span className="variants-hint">Vacío = {money(fallback)}</span>
+            </label>
+          </div>
         </div>
-      </td>
 
-      <td>
-        <input className="input" value={sku} onChange={(e) => setSku(e.target.value)} onBlur={autoSave} placeholder="SKU" />
-      </td>
+        <div className="variant-card__right">
+          <div className="variant-stock-card">
+            <span className="variant-field__label">Stock disponible</span>
+            <input
+              className="input variant-stock-card__input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={stock}
+              onChange={(e) => setStock(Number(e.target.value || 0))}
+              onBlur={autoSave}
+              placeholder="0"
+              aria-label="Stock"
+            />
+            <span className="variant-stock-card__hint">
+              Valor actual listo para publicar
+            </span>
+          </div>
 
-      <td>
-        <div className="variants-num">
-          <input
-            className="input input--sm input--num"
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="0.01"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            onBlur={autoSave}
-            placeholder="—"
-            aria-label="Precio de variante (opcional)"
-          />
-          <div className="variants-hint">Vacío = {money(fallback)}</div>
-        </div>
-      </td>
+          <label className="variant-toggle-card">
+            <input
+              type="checkbox"
+              checked={active}
+              onChange={(e) => {
+                setActive(e.target.checked);
+                setTimeout(autoSave, 60);
+              }}
+            />
+            <div>
+              <strong>{active ? 'Visible en tienda' : 'Oculta en tienda'}</strong>
+              <span>{active ? 'La variante se puede vender.' : 'No aparece para compra.'}</span>
+            </div>
+          </label>
 
-      <td>
-        <div className="variants-num">
-          <input
-            className="input input--sm input--num"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            value={stock}
-            onChange={(e) => setStock(Number(e.target.value || 0))}
-            onBlur={autoSave}
-            placeholder="0"
-            aria-label="Stock"
-          />
-        </div>
-      </td>
-
-      <td>
-        <label className="row" style={{ alignItems: 'center', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={(e) => {
-              setActive(e.target.checked);
-              setTimeout(autoSave, 60);
-            }}
-          />{' '}
-          Sí
-        </label>
-      </td>
-
-      <td style={{ textAlign: 'center' }}>
-        <form
-          action={async () => {
-            if (!confirm('¿Eliminar esta variante?')) return;
-            startTransition(() => onDelete());
-          }}
-        >
-          <button
-            type="submit"
-            disabled={pending}
-            className="btn-icon-delete"
-            aria-label="Eliminar variante"
-            title="Eliminar variante"
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 8,
-              cursor: pending ? 'not-allowed' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 8,
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              if (!pending) e.currentTarget.style.background = '#fee2e2';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
+          <form
+            action={async () => {
+              if (!confirm('¿Eliminar esta variante?')) return;
+              startTransition(() => onDelete());
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              <line x1="10" y1="11" x2="10" y2="17" />
-              <line x1="14" y1="11" x2="14" y2="17" />
-            </svg>
-          </button>
-        </form>
-      </td>
-    </tr>
+            <button
+              type="submit"
+              disabled={pending}
+              className="variant-delete-btn"
+              aria-label="Eliminar variante"
+              title="Eliminar variante"
+            >
+              Eliminar variante
+            </button>
+          </form>
+        </div>
+      </section>
+    </article>
   );
 }
