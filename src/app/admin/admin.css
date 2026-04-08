@@ -1474,6 +1474,14 @@ body.sidebar-collapsed .logout-btn {
   font-variant-numeric: tabular-nums;
 }
 
+.variant-active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--admin-text);
+}
+
 .variant-commercial {
   display: grid;
   gap: 10px;

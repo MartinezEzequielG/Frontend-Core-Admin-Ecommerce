@@ -1,4 +1,4 @@
-import { backendFetch } from '@/lib/backend';
+import { API, backendFetch } from '@/lib/backend';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
@@ -48,7 +48,7 @@ async function ship(orderId: number, formData: FormData) {
   const token = (await cookies()).get('token')?.value;
   const trackingCode = String(formData.get('trackingCode') || '').trim();
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/orders/${orderId}/ship`, {
+  const res = await fetch(`${API}/admin/orders/${orderId}/ship`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -57,6 +57,7 @@ async function ship(orderId: number, formData: FormData) {
     body: JSON.stringify({ trackingCode }),
     cache: 'no-store',
   });
+
   if (!res.ok) throw new Error(await res.text());
   revalidatePath(`/admin/orders/${orderId}`);
 }
@@ -64,11 +65,13 @@ async function ship(orderId: number, formData: FormData) {
 async function deliver(orderId: number) {
   'use server';
   const token = (await cookies()).get('token')?.value;
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/orders/${orderId}/deliver`, {
+
+  const res = await fetch(`${API}/admin/orders/${orderId}/deliver`, {
     method: 'PATCH',
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     cache: 'no-store',
   });
+
   if (!res.ok) throw new Error(await res.text());
   revalidatePath(`/admin/orders/${orderId}`);
 }
@@ -78,7 +81,7 @@ async function updateStatus(orderId: number, formData: FormData) {
   const token = (await cookies()).get('token')?.value;
   const status = String(formData.get('status') || 'PENDING');
 
-  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/orders/${orderId}`, {
+  const res = await fetch(`${API}/admin/orders/${orderId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
