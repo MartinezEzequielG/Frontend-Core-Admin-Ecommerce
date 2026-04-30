@@ -1,6 +1,7 @@
 import { API, backendFetch } from '@/lib/backend';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 type AdminCoupon = {
   id: number;
@@ -47,37 +48,62 @@ export default async function CouponDetail({ params }: { params: Promise<{ id: s
 
 async function update(id: number, fd: FormData) {
   'use server';
+
   const token = (await cookies()).get('token')?.value;
 
+  const expiresAtRaw = String(fd.get('expiresAt') || '').trim();
+
   const body = {
-    code: String(fd.get('code') || '').trim(),
+    code: String(fd.get('code') || '').trim().toUpperCase(),
     type: String(fd.get('type') || 'PERCENT'),
     value: Number(fd.get('value') || 0),
     active: fd.get('active') ? true : false,
-    expiresAt: fd.get('expiresAt') ? new Date(String(fd.get('expiresAt'))) : undefined,
+    ...(expiresAtRaw
+      ? { expiresAt: new Date(`${expiresAtRaw}T00:00:00.000Z`).toISOString() }
+      : { expiresAt: null }),
   };
 
   const res = await fetch(`${API}/admin/coupons/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
     cache: 'no-store',
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (res.status === 401) redirect('/login');
+
+  if (!res.ok) {
+    revalidatePath(`/admin/coupons/${id}`);
+    redirect(`/admin/coupons/${id}?error=1`);
+  }
+
   revalidatePath(`/admin/coupons/${id}`);
+  redirect(`/admin/coupons/${id}?saved=1`);
 }
 
 async function remove(id: number) {
   'use server';
+
   const token = (await cookies()).get('token')?.value;
 
   const res = await fetch(`${API}/admin/coupons/${id}`, {
     method: 'DELETE',
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     cache: 'no-store',
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (res.status === 401) redirect('/login');
+
+  if (!res.ok) {
+    revalidatePath('/admin/coupons');
+    redirect('/admin/coupons?error=1');
+  }
+
   revalidatePath('/admin/coupons');
+  redirect('/admin/coupons?deleted=1');
 }

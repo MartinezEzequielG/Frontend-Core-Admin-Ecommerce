@@ -6,26 +6,42 @@ import PageHeader from '@/components/admin/ui/PageHeader';
 
 export default function NewCouponPage() {
   const create = async (fd: FormData) => {
-    'use server';
-    const token = (await cookies()).get('token')?.value;
-    const body = {
-      code: String(fd.get('code') || '').trim(),
-      type: String(fd.get('type') || 'PERCENT'),
-      value: Number(fd.get('value') || 0),
-      active: fd.get('active') ? true : false,
-      expiresAt: fd.get('expiresAt') ? new Date(String(fd.get('expiresAt'))) : undefined,
-    };
-    const res = await fetch(`${process.env.BACKEND_API_URL}/admin/coupons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const created = await res.json();
-    revalidatePath('/admin/coupons');
-    redirect(`/admin/coupons/${created.id}`);
+  'use server';
+
+  const token = (await cookies()).get('token')?.value;
+
+  const expiresAtRaw = String(fd.get('expiresAt') || '').trim();
+
+  const body = {
+    code: String(fd.get('code') || '').trim().toUpperCase(),
+    type: String(fd.get('type') || 'PERCENT'),
+    value: Number(fd.get('value') || 0),
+    active: fd.get('active') ? true : false,
+    ...(expiresAtRaw
+      ? { expiresAt: new Date(`${expiresAtRaw}T00:00:00.000Z`).toISOString() }
+      : {}),
   };
+
+  const res = await fetch(`${process.env.BACKEND_API_URL}/admin/coupons`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+
+  if (res.status === 401) redirect('/login');
+
+  if (!res.ok) {
+    revalidatePath('/admin/coupons');
+    redirect('/admin/coupons/new?error=1');
+  }
+
+  revalidatePath('/admin/coupons');
+  redirect('/admin/coupons?saved=1');
+};
 
   return (
     <main className="admin-page">
