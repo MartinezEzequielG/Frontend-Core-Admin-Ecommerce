@@ -73,6 +73,7 @@ export default function VariantsClient(props: {
           No hay variantes aún. Creá una variante y asignale la combinación.
         </p>
       ) : (
+<<<<<<< HEAD
         <div className="table-wrap">
           <table className="table variants-table">
             <colgroup>
@@ -110,13 +111,28 @@ export default function VariantsClient(props: {
               ))}
             </tbody>
           </table>
+=======
+        <div className="variants-list">
+          {props.variants.map((v: any) => (
+            <VariantCard
+              key={v.id}
+              v={v}
+              options={options}
+              images={images}
+              basePrice={basePrice}
+              salePrice={salePrice}
+              onSave={(data) => props.upsertVariantAction({ id: v.id, ...data })}
+              onDelete={() => props.deleteVariantAction(v.id)}
+            />
+          ))}
+>>>>>>> 477d02b3b408a39c1b2f8d1b8c1d52deaa4fd19f
         </div>
       )}
     </div>
   );
 }
 
-function VariantRow({
+function VariantCard({
   v,
   options,
   images,
@@ -213,9 +229,19 @@ function VariantRow({
   };
 
   return (
-    <tr style={{ opacity: pending ? 0.75 : 1 }}>
-      <td>#{v.id}</td>
+    <article className="variant-card" style={{ opacity: pending ? 0.75 : 1 }}>
+      <header className="variant-card__header">
+        <div className="variant-card__titleblock">
+          <div className="variant-card__eyebrow">Variante #{v.id}</div>
+          <h3 className="variant-card__title">{comboLabel}</h3>
+          <p className="variant-card__meta">
+            {isComboValid
+              ? 'Combinación lista. Los cambios se guardan al salir de cada campo.'
+              : 'Falta completar la combinación para guardar.'}
+          </p>
+        </div>
 
+<<<<<<< HEAD
       {/* COMBINACIÓN */}
       <td>
         <div className="variant-combo">
@@ -224,6 +250,17 @@ function VariantRow({
             <span className="cell-meta">Asigná 1 valor por atributo {isComboValid ? '' : '· Falta completar'}</span>
           </div>
 
+=======
+        <div className="variant-card__status">
+          <span className={`variant-status ${active ? 'is-active' : 'is-inactive'}`}>
+            {active ? 'Activa' : 'Oculta'}
+          </span>
+        </div>
+      </header>
+
+      <section className="variant-card__section">
+        <div className="variant-combo">
+>>>>>>> 477d02b3b408a39c1b2f8d1b8c1d52deaa4fd19f
           <div className="variant-combo__selects">
             {(options || []).map((opt: any) => (
               <label key={opt.id} className="variant-select">
@@ -239,7 +276,7 @@ function VariantRow({
                   }}
                   onBlur={autoSave}
                 >
-                  <option value="">—</option>
+                  <option value="">Seleccionar</option>
                   {(opt.values || []).map((val: any) => (
                     <option key={val.id} value={val.id}>
                       {val.value}
@@ -250,8 +287,9 @@ function VariantRow({
             ))}
           </div>
         </div>
-      </td>
+      </section>
 
+<<<<<<< HEAD
       {/* IMAGEN */}
       <td>
         <div style={{ display: 'grid', gap: 8 }}>
@@ -272,28 +310,76 @@ function VariantRow({
             <div style={{ fontSize: 11, color: 'var(--admin-muted)', lineHeight: 1.2 }}>
               {imageId ? `ID imagen: #${imageId}` : 'Sin imagen'}
               <div style={{ opacity: 0.7 }}>Se verá en la tienda para esta variante</div>
+=======
+      <section className="variant-card__body">
+        <div className="variant-card__left">
+          <div className="variant-media-card">
+            <div className="variant-media-card__preview">
+              <img
+                src={previewUrl}
+                alt=""
+                className="variant-media-card__img"
+              />
+              <div className="variant-media-card__info">
+                <strong>{imageId ? `Imagen #${imageId}` : 'Sin imagen asignada'}</strong>
+                <span>Se mostrará para esta variante en la tienda.</span>
+              </div>
+>>>>>>> 477d02b3b408a39c1b2f8d1b8c1d52deaa4fd19f
             </div>
+
+            <label className="variant-field">
+              <span className="variant-field__label">Imagen</span>
+              <select
+                className="select"
+                value={imageId ?? ''}
+                onChange={(e) => setImageId(e.target.value ? Number(e.target.value) : null)}
+                onBlur={autoSave}
+              >
+                <option value="">Sin imagen</option>
+                {(images || [])
+                  .slice()
+                  .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
+                  .map((im) => (
+                    <option key={im.id} value={im.id}>
+                      #{im.position ?? 0} · id {im.id}
+                    </option>
+                  ))}
+              </select>
+            </label>
           </div>
 
-          <select
-            className="select"
-            value={imageId ?? ''}
-            onChange={(e) => setImageId(e.target.value ? Number(e.target.value) : null)}
-            onBlur={autoSave}
-          >
-            <option value="">Sin imagen</option>
-            {(images || [])
-              .slice()
-              .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
-              .map((im) => (
-                <option key={im.id} value={im.id}>
-                  #{im.position ?? 0} · (id {im.id})
-                </option>
-              ))}
-          </select>
-        </div>
-      </td>
+          <div className="variant-commercial-grid">
+            <label className="variant-field">
+              <span className="variant-field__label">SKU</span>
+              <input
+                className="input"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                onBlur={autoSave}
+                placeholder="SKU"
+              />
+            </label>
 
+            <label className="variant-field">
+              <span className="variant-field__label">Precio</span>
+              <input
+                className="input input--sm input--num"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                onBlur={autoSave}
+                placeholder="—"
+                aria-label="Precio de variante (opcional)"
+              />
+              <span className="variants-hint">Vacío = {money(fallback)}</span>
+            </label>
+          </div>
+        </div>
+
+<<<<<<< HEAD
       {/* SKU */}
       <td>
         <input className="input" value={sku} onChange={(e) => setSku(e.target.value)} onBlur={autoSave} placeholder="SKU" />
@@ -424,5 +510,61 @@ function VariantRow({
         </form>
       </td>
     </tr>
+=======
+        <div className="variant-card__right">
+          <div className="variant-stock-card">
+            <span className="variant-field__label">Stock disponible</span>
+            <input
+              className="input variant-stock-card__input"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={stock}
+              onChange={(e) => setStock(Number(e.target.value || 0))}
+              onBlur={autoSave}
+              placeholder="0"
+              aria-label="Stock"
+            />
+            <span className="variant-stock-card__hint">
+              Valor actual listo para publicar
+            </span>
+          </div>
+
+          <label className="variant-toggle-card">
+            <input
+              type="checkbox"
+              checked={active}
+              onChange={(e) => {
+                setActive(e.target.checked);
+                setTimeout(autoSave, 60);
+              }}
+            />
+            <div>
+              <strong>{active ? 'Visible en tienda' : 'Oculta en tienda'}</strong>
+              <span>{active ? 'La variante se puede vender.' : 'No aparece para compra.'}</span>
+            </div>
+          </label>
+
+          <form
+            action={async () => {
+              if (!confirm('¿Eliminar esta variante?')) return;
+              startTransition(() => onDelete());
+            }}
+          >
+            <button
+              type="submit"
+              disabled={pending}
+              className="variant-delete-btn"
+              aria-label="Eliminar variante"
+              title="Eliminar variante"
+            >
+              Eliminar variante
+            </button>
+          </form>
+        </div>
+      </section>
+    </article>
+>>>>>>> 477d02b3b408a39c1b2f8d1b8c1d52deaa4fd19f
   );
 }
